@@ -54,7 +54,10 @@ class _DietPlanViewerState extends State<DietPlanViewer> {
             separatorBuilder: (_, __) => SizedBox(height: 2.h),
             itemBuilder: (context, index) {
               final plan = plans[index].data() as Map<String, dynamic>;
-              return _PlanCard(plan: plan);
+              final isStructured = plan['format'] == 'structured';
+              return isStructured
+                  ? _StructuredPlanCard(plan: plan)
+                  : _PlanCard(plan: plan);
             },
           );
         },
@@ -253,5 +256,287 @@ class _PlanCard extends StatelessWidget {
         SnackBar(content: Text('Error: $e')),
       );
     }
+  }
+}
+
+// ─── Structured (AI-generated) plan card ─────────────────────────────────────
+
+class _StructuredPlanCard extends StatefulWidget {
+  final Map<String, dynamic> plan;
+  const _StructuredPlanCard({required this.plan});
+
+  @override
+  State<_StructuredPlanCard> createState() => _StructuredPlanCardState();
+}
+
+class _StructuredPlanCardState extends State<_StructuredPlanCard> {
+  int _selectedDay = 0;
+
+  static const _mealIcons = {
+    'breakfast': '🌅',
+    'midMorning': '🍎',
+    'lunch': '🍱',
+    'eveningSnack': '☕',
+    'dinner': '🌙',
+  };
+  static const _mealLabels = {
+    'breakfast': 'Breakfast',
+    'midMorning': 'Mid-Morning',
+    'lunch': 'Lunch',
+    'eveningSnack': 'Evening Snack',
+    'dinner': 'Dinner',
+  };
+  static const _mealColors = {
+    'breakfast': Color(0xFF4CAF50),
+    'midMorning': Color(0xFF2196F3),
+    'lunch': Color(0xFFFF9800),
+    'eveningSnack': Color(0xFF9C27B0),
+    'dinner': Color(0xFFF44336),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final title = widget.plan['title'] as String? ?? 'Diet Plan';
+    final notes = widget.plan['notes'] as String? ?? '';
+    final uploadedAt = widget.plan['uploadedAt'] as Timestamp?;
+    final days = (widget.plan['weekPlan'] as List?) ?? [];
+
+    String dateStr = '';
+    if (uploadedAt != null) {
+      final d = uploadedAt.toDate();
+      dateStr = '${d.day}/${d.month}/${d.year}';
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF61b239), Color(0xFF4a9a2a)],
+              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            padding: EdgeInsets.all(4.w),
+            child: Row(
+              children: [
+                const Text('🤖', style: TextStyle(fontSize: 22)),
+                SizedBox(width: 2.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15)),
+                      if (dateStr.isNotEmpty)
+                        Text('Created $dateStr',
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 11)),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text('AI Generated',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ),
+          ),
+
+          if (notes.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.fromLTRB(4.w, 2.h, 4.w, 0),
+              child: Container(
+                padding: EdgeInsets.all(3.w),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF61b239).withOpacity(0.07),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded,
+                        size: 16, color: Color(0xFF61b239)),
+                    SizedBox(width: 2.w),
+                    Expanded(
+                      child: Text(notes,
+                          style: const TextStyle(
+                              fontSize: 12, color: Color(0xFF61b239))),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Day selector
+          if (days.isNotEmpty) ...[
+            SizedBox(height: 1.5.h),
+            SizedBox(
+              height: 36,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: EdgeInsets.symmetric(horizontal: 4.w),
+                itemCount: days.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, i) {
+                  final isSelected = _selectedDay == i;
+                  final dayLabel =
+                      (days[i] as Map<String, dynamic>)['day'] as String? ??
+                          'Day ${i + 1}';
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedDay = i),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFF61b239)
+                            : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        dayLabel,
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: isSelected
+                                ? Colors.white
+                                : Colors.grey.shade600),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            SizedBox(height: 1.5.h),
+
+            // Selected day meals
+            if (_selectedDay < days.length)
+              Padding(
+                padding: EdgeInsets.fromLTRB(4.w, 0, 4.w, 3.h),
+                child: _buildDayMeals(
+                    days[_selectedDay] as Map<String, dynamic>),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDayMeals(Map<String, dynamic> day) {
+    final mealKeys = [
+      'breakfast',
+      'midMorning',
+      'lunch',
+      'eveningSnack',
+      'dinner'
+    ];
+
+    return Column(
+      children: mealKeys.map((key) {
+        final items = (day[key] as List?) ?? [];
+        if (items.isEmpty) return const SizedBox.shrink();
+
+        final color = _mealColors[key] ?? Colors.grey;
+        final label = _mealLabels[key] ?? key;
+        final icon = _mealIcons[key] ?? '🍽';
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withOpacity(0.15)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                child: Row(
+                  children: [
+                    Text(icon, style: const TextStyle(fontSize: 16)),
+                    const SizedBox(width: 8),
+                    Text(label,
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: color)),
+                  ],
+                ),
+              ),
+              ...items.map((item) {
+                final m = item as Map<String, dynamic>;
+                return Padding(
+                  padding:
+                      const EdgeInsets.fromLTRB(12, 2, 12, 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: Text(
+                          m['name'] ?? '',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 3,
+                        child: Text(
+                          m['quantity'] ?? '',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${m['calories']} kcal',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: color,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      }).toList(),
+    );
   }
 }

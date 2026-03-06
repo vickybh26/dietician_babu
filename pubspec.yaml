@@ -35,6 +35,8 @@ dependencies:
   pin_code_fields: ^8.0.1
 
   universal_html: ^2.2.4
+  google_generative_ai: ^0.4.6
+  url_launcher: ^6.3.0
 dev_dependencies:
   flutter_test:    # CRITICAL: Required for Flutter project testing - DO NOT REMOVE
     sdk: flutter   # CRITICAL: Required for Flutter project testing - DO NOT REMOVE

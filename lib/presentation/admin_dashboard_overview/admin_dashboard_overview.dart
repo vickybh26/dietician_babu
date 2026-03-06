@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/app_export.dart';
+import '../../routes/app_routes.dart';
 import '../../services/admin_dashboard_service.dart';
 import 'widgets/stats_card_widget.dart';
 import 'widgets/revenue_chart_widget.dart';
@@ -149,6 +150,18 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
               onPressed: _loadDashboardData,
               icon: const Icon(Icons.refresh),
               tooltip: 'Refresh Data',
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pushNamed(context, AppRoutes.adminDietPlanCreator);
+              },
+              icon: const Icon(Icons.auto_awesome_rounded),
+              label: const Text('Create Diet Plan'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFf5a40d),
+                foregroundColor: Colors.white,
+              ),
             ),
             const SizedBox(width: 8),
             ElevatedButton.icon(
