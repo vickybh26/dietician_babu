@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/app_export.dart';
+import '../../services/firebase_service.dart';
 import './widgets/consultation_reminder_widget.dart';
 import './widgets/daily_calorie_progress_widget.dart';
 import './widgets/meal_plan_preview_widget.dart';
@@ -21,16 +23,21 @@ class _DashboardHomeState extends State<DashboardHome>
   int _currentIndex = 0;
   bool _isLoading = false;
 
-  // Mock data for dashboard
+  // Real user data from Firestore
+  String _userName = 'Welcome';
+  String _subscriptionPlan = 'none';
+  String _subscriptionStatus = 'none';
+  double _currentWeight = 0;
+
+  // Static dashboard data
   final Map<String, dynamic> _userData = {
-    "name": "Priya Sharma",
     "targetCalories": 1800,
-    "consumedCalories": 1245,
+    "consumedCalories": 0,
     "targetWater": 2500,
-    "currentWater": 1750,
+    "currentWater": 0,
     "targetSteps": 10000,
-    "currentSteps": 7234,
-    "distanceKm": 5.2,
+    "currentSteps": 0,
+    "distanceKm": 0.0,
   };
 
   final List<Map<String, dynamic>> _todayMeals = [
@@ -86,6 +93,45 @@ class _DashboardHomeState extends State<DashboardHome>
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final uid = FirebaseService.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final clientSnap =
+          await FirebaseService.instance.clients.doc(uid).get();
+      final userSnap =
+          await FirebaseService.instance.users.doc(uid).get();
+
+      if (mounted) {
+        setState(() {
+          // Get name from user record
+          final phone = userSnap.data()?['phone'] as String? ?? '';
+          final email = userSnap.data()?['email'] as String? ?? '';
+          _userName = userSnap.data()?['name'] as String? ??
+              (phone.isNotEmpty ? phone : email.split('@').first);
+
+          // Subscription info from client record
+          if (clientSnap.exists) {
+            _subscriptionPlan =
+                clientSnap.data()?['subscriptionPlan'] as String? ?? 'none';
+            _subscriptionStatus =
+                clientSnap.data()?['subscriptionStatus'] as String? ?? 'none';
+            _currentWeight =
+                (clientSnap.data()?['weightKg'] as num?)?.toDouble() ?? 0;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading user data: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.lightTheme.scaffoldBackgroundColor,
@@ -127,7 +173,7 @@ class _DashboardHomeState extends State<DashboardHome>
                 ),
               ),
               Text(
-                _userData['name'] as String,
+                _userName,
                 style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -182,11 +228,32 @@ class _DashboardHomeState extends State<DashboardHome>
                   ),
                 ),
               ),
+              SizedBox(width: 2.w),
+              GestureDetector(
+                onTap: _handleLogout,
+                child: Container(
+                  width: 10.w,
+                  height: 10.w,
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(Icons.logout_rounded,
+                      color: Colors.red, size: 18),
+                ),
+              ),
             ],
           ),
         ),
       ],
     );
+  }
+
+  Future<void> _handleLogout() async {
+    await FirebaseService.instance.signOut();
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/login-screen');
+    }
   }
 
   Widget _buildBody() {
@@ -197,6 +264,10 @@ class _DashboardHomeState extends State<DashboardHome>
         child: Column(
           children: [
             SizedBox(height: 1.h),
+
+            // ── Quick Actions ────────────────────────────────────────────────
+            _buildQuickActions(),
+
             // Motivational Message
             if (_motivationalMessages.isNotEmpty)
               MotivationalMessageWidget(
@@ -332,13 +403,158 @@ class _DashboardHomeState extends State<DashboardHome>
     );
   }
 
+  // ── Quick Actions ─────────────────────────────────────────────────────────
+  Widget _buildQuickActions() {
+    final bool hasSubscription =
+        _subscriptionStatus == 'active';
+
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Subscription status banner
+          if (!hasSubscription)
+            GestureDetector(
+              onTap: () =>
+                  Navigator.pushNamed(context, '/subscription-plans'),
+              child: Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(3.w),
+                margin: EdgeInsets.only(bottom: 2.h),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFf5a40d), Color(0xFFe8960a)],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                        color: const Color(0xFFf5a40d).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3))
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Text('🌟', style: TextStyle(fontSize: 22)),
+                    SizedBox(width: 3.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('No active plan',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14)),
+                          Text('Tap to subscribe and get your diet plan',
+                              style: TextStyle(
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios_rounded,
+                        color: Colors.white, size: 16),
+                  ],
+                ),
+              ),
+            )
+          else
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(3.w),
+              margin: EdgeInsets.only(bottom: 2.h),
+              decoration: BoxDecoration(
+                color: const Color(0xFF61b239).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                    color: const Color(0xFF61b239).withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Text('✅', style: TextStyle(fontSize: 20)),
+                  SizedBox(width: 3.w),
+                  Text(
+                    '$_subscriptionPlan Plan — Active',
+                    style: const TextStyle(
+                        color: Color(0xFF61b239),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+
+          // 4 action tiles
+          Text(
+            'Quick Access',
+            style: AppTheme.lightTheme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: 1.5.h),
+          Row(
+            children: [
+              _actionTile('📋', 'My Diet Plan', '/diet-plan-viewer',
+                  const Color(0xFF61b239)),
+              SizedBox(width: 3.w),
+              _actionTile('📝', 'Weekly\nCheck-in', '/weekly-checkin',
+                  const Color(0xFF2196F3)),
+            ],
+          ),
+          SizedBox(height: 2.w),
+          Row(
+            children: [
+              _actionTile('📈', 'My Progress', '/progress-tracking',
+                  const Color(0xFF9c27b0)),
+              SizedBox(width: 3.w),
+              _actionTile('💳', 'Subscription', '/subscription-plans',
+                  const Color(0xFFf5a40d)),
+            ],
+          ),
+          SizedBox(height: 2.h),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionTile(
+      String emoji, String label, String route, Color color) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => Navigator.pushNamed(context, route),
+        child: Container(
+          padding: EdgeInsets.symmetric(vertical: 2.h, horizontal: 3.w),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withOpacity(0.2)),
+          ),
+          child: Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 22)),
+              SizedBox(width: 2.w),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: color.withOpacity(0.85)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // Event handlers
   Future<void> _handleRefresh() async {
     setState(() => _isLoading = true);
-
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
-
+    await _loadUserData();
     setState(() => _isLoading = false);
   }
 

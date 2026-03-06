@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sizer/sizer.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/app_export.dart';
+import '../../services/firebase_service.dart';
 import './widgets/activity_level_widget.dart';
 import './widgets/basic_info_widget.dart';
 import './widgets/food_preferences_widget.dart';
@@ -389,14 +391,14 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
     }
   }
 
-  void _completeOnboarding() {
+  Future<void> _completeOnboarding() async {
     HapticFeedback.heavyImpact();
 
-    // Show completion animation
+    // Show saving dialog
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -415,7 +417,7 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
             ),
             SizedBox(height: 3.h),
             Text(
-              'Profile Complete!',
+              'Saving your profile...',
               style: AppTheme.lightTheme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: AppTheme.lightTheme.colorScheme.onSurface,
@@ -424,7 +426,7 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
             ),
             SizedBox(height: 1.h),
             Text(
-              'We\'re creating your personalized diet plan. This will take just a moment.',
+              'Setting up your personalised plan. This will take just a moment.',
               style: AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
                 color: AppTheme.lightTheme.colorScheme.onSurfaceVariant,
               ),
@@ -442,11 +444,41 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
       ),
     );
 
-    // Simulate profile creation delay
-    Future.delayed(const Duration(seconds: 3), () {
+    try {
+      final uid = FirebaseService.instance.currentUser?.uid;
+      if (uid != null) {
+        // Save health profile to Firestore
+        await FirebaseService.instance.clients.doc(uid).set({
+          'goal': _selectedGoal,
+          'activityLevel': _activityLevel,
+          'age': _age,
+          'heightCm': _height,
+          'weightKg': _weight,
+          'gender': _gender,
+          'medicalConditions': _selectedMedicalConditions,
+          'cuisines': _selectedCuisines,
+          'dietaryRestrictions': _selectedDietaryRestrictions,
+          'subscriptionStatus': 'none',
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        // Mark onboarding complete in users collection
+        await FirebaseService.instance.upsertUser(
+          FirebaseService.instance.currentUser!,
+          onboardingComplete: true,
+        );
+        await FirebaseService.instance.users.doc(uid).update({
+          'onboardingComplete': true,
+        });
+      }
+    } catch (e) {
+      debugPrint('Error saving profile: $e');
+    }
+
+    if (mounted) {
       Navigator.of(context).pop(); // Close dialog
       Navigator.pushReplacementNamed(context, '/dashboard-home');
-    });
+    }
   }
 
   @override

@@ -1,3 +1,12 @@
+# ─── Secrets — never commit these ────────────────────────────────────────────
+lib/config/secrets.dart
+google-services.json
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+*.keystore
+*.jks
+env.json
+
 # Miscellaneous
 *.class
 *.log
