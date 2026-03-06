@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/app_export.dart';
+
 import '../../services/client_management_service.dart';
 import '../admin_dashboard_overview/widgets/admin_sidebar_widget.dart';
 import 'widgets/pending_approvals_tab_widget.dart';
@@ -451,7 +451,7 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
 
   Future<void> _exportClientData() async {
     try {
-      final csvData = await ClientManagementService.exportClientData();
+      final _ = await ClientManagementService.exportClientData();
       // In a real app, this would trigger file download
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

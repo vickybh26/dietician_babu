@@ -4,7 +4,7 @@ import 'package:sizer/sizer.dart';
 
 import '../core/app_export.dart';
 import '../widgets/custom_error_widget.dart';
-import 'package:flutter/foundation.dart';
+
 import 'services/firebase_service.dart';
 
 void main() async {

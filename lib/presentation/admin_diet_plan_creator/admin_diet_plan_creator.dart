@@ -134,8 +134,6 @@ class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
     setState(() => _generating = true);
 
     final profile = _selectedClientProfile!;
-    final clientData = _clients
-        .firstWhere((c) => c['uid'] == _selectedClientId, orElse: () => {});
 
     final age = profile['age'] ?? 'unknown';
     final weight = profile['weightKg'] ?? 'unknown';

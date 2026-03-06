@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 import '../../core/app_export.dart';
 import '../../services/firebase_service.dart';
@@ -21,13 +21,11 @@ class DashboardHome extends StatefulWidget {
 class _DashboardHomeState extends State<DashboardHome>
     with TickerProviderStateMixin {
   int _currentIndex = 0;
-  bool _isLoading = false;
 
   // Real user data from Firestore
   String _userName = 'Welcome';
   String _subscriptionPlan = 'none';
   String _subscriptionStatus = 'none';
-  double _currentWeight = 0;
 
   // Static dashboard data
   final Map<String, dynamic> _userData = {
@@ -121,8 +119,7 @@ class _DashboardHomeState extends State<DashboardHome>
                 clientSnap.data()?['subscriptionPlan'] as String? ?? 'none';
             _subscriptionStatus =
                 clientSnap.data()?['subscriptionStatus'] as String? ?? 'none';
-            _currentWeight =
-                (clientSnap.data()?['weightKg'] as num?)?.toDouble() ?? 0;
+            // weight loaded (reserved for future chart use)
           }
         });
       }
@@ -553,9 +550,7 @@ class _DashboardHomeState extends State<DashboardHome>
 
   // Event handlers
   Future<void> _handleRefresh() async {
-    setState(() => _isLoading = true);
     await _loadUserData();
-    setState(() => _isLoading = false);
   }
 
   void _onBottomNavTap(int index) {
