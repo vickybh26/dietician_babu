@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/app_export.dart';
+import '../../../services/firebase_service.dart';
 
 class AdminSidebarWidget extends StatefulWidget {
   const AdminSidebarWidget({super.key});
@@ -200,26 +201,35 @@ class _AdminSidebarWidgetState extends State<AdminSidebarWidget> {
 
   void _selectMenuItem(Map<String, dynamic> item) {
     setState(() => _selectedItem = item['title']);
-    
-    // Navigate to the corresponding route
-    if (item['route'] != null) {
-      // Check if route exists in app routes
-      switch (item['route']) {
-        case '/admin-dashboard-overview':
-          // Already on dashboard, just update selection
-          break;
-        case '/client-management-system':
-          Navigator.pushNamed(context, AppRoutes.clientManagementSystem);
-          break;
-        default:
-          // Show coming soon for routes not implemented yet
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${item['title']} coming soon!'),
-              backgroundColor: Colors.blue,
-            ),
-          );
-      }
+
+    // Close drawer if open
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+
+    final route = item['route'] as String?;
+    if (route == null) return;
+
+    switch (route) {
+      case '/admin-dashboard-overview':
+        Navigator.pushNamedAndRemoveUntil(
+            context, AppRoutes.adminDashboardOverview, (r) => false);
+        break;
+      case '/client-management-system':
+        Navigator.pushNamed(context, AppRoutes.clientManagementSystem);
+        break;
+      case '/diet-plans-management':
+        Navigator.pushNamed(context, AppRoutes.dietPlansManagement);
+        break;
+      case '/sales-analytics':
+        Navigator.pushNamed(context, AppRoutes.salesAnalytics);
+        break;
+      case '/subscriptions-management':
+        Navigator.pushNamed(context, AppRoutes.subscriptionsManagement);
+        break;
+      case '/admin-settings':
+        Navigator.pushNamed(context, AppRoutes.adminSettings);
+        break;
     }
   }
 
@@ -235,13 +245,16 @@ class _AdminSidebarWidgetState extends State<AdminSidebarWidget> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                AppRoutes.login,
-                (route) => false,
-              );
+              await FirebaseService.instance.signOut();
+              if (context.mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  AppRoutes.login,
+                  (route) => false,
+                );
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Logout', style: TextStyle(color: Colors.white)),
