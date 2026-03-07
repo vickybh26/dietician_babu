@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-
 import 'package:google_fonts/google_fonts.dart';
+import 'package:sizer/sizer.dart';
 import '../../core/app_export.dart';
 import '../../routes/app_routes.dart';
 import '../../services/admin_dashboard_service.dart';
@@ -59,7 +59,7 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(4.w),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -99,7 +99,7 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
               Text(
                 'Dashboard Overview',
                 style: GoogleFonts.inter(
-                  fontSize: 20,
+                  fontSize: 16.sp,
                   fontWeight: FontWeight.bold,
                   color: Colors.grey[800],
                 ),
@@ -108,7 +108,7 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
               Text(
                 'Here\'s what\'s happening today.',
                 style: GoogleFonts.inter(
-                  fontSize: 13,
+                  fontSize: 11.sp,
                   color: Colors.grey[600],
                 ),
               ),

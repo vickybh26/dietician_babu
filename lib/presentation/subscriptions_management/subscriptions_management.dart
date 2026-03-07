@@ -403,12 +403,14 @@ class _SubscriptionsManagementState extends State<SubscriptionsManagement> {
                   children: [
                     Text('Subscriptions',
                         style: GoogleFonts.inter(
-                            fontSize: 20,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Colors.grey[800])),
                     Text('Manage all client subscriptions',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.inter(
-                            fontSize: 13, color: Colors.grey[600])),
+                            fontSize: 12, color: Colors.grey[600])),
                   ],
                 ),
               ),

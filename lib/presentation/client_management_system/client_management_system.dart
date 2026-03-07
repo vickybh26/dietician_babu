@@ -158,9 +158,11 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
                     Text(
                       'Manage approvals, subscriptions & communications',
                       style: GoogleFonts.inter(
-                        fontSize: 13,
+                        fontSize: 12,
                         color: Colors.grey[600],
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -198,31 +200,33 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
   }
 
   Widget _buildStatCard(String title, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: color,
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
             ),
-          ),
-          Text(
-            title,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: color,
+            Text(
+              title,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: color,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -235,16 +239,18 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
         labelColor: const Color(0xFF1976D2),
         unselectedLabelColor: Colors.grey[600],
         indicatorColor: const Color(0xFF1976D2),
-        labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
-        unselectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w400),
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w400),
         tabs: [
           Tab(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Pending Approvals'),
+                const Text('Pending'),
                 if (_pendingClients.isNotEmpty) ...[
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
@@ -264,9 +270,9 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
               ],
             ),
           ),
-          const Tab(text: 'Active Clients'),
-          const Tab(text: 'Inactive Clients'),
-          const Tab(text: 'Flagged Accounts'),
+          const Tab(text: 'Active'),
+          const Tab(text: 'Inactive'),
+          const Tab(text: 'Flagged'),
         ],
       ),
     );
