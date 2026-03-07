@@ -31,6 +31,7 @@ class FirebaseService {
   FirebaseStorage get storage => FirebaseStorage.instance;
 
   static Future<void> initialize() async {
+    if (Firebase.apps.isNotEmpty) return;
     await Firebase.initializeApp(
       options: const FirebaseOptions(
         apiKey: AppSecrets.firebaseApiKey,

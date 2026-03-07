@@ -935,7 +935,7 @@ class _SettingsProfileState extends State<SettingsProfile> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              await FirebaseService().signOut();
+              await FirebaseService.instance.signOut();
               if (context.mounted) {
                 Navigator.pushNamedAndRemoveUntil(
                   context,
