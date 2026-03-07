@@ -7,8 +7,8 @@ class LandingScreen extends StatelessWidget {
   const LandingScreen({super.key});
 
   // ── Update these with Dietician Babu's actual contact details ────────────
-  static const String _whatsappNumber = '919893459378'; // without +
-  static const String _callNumber = '+919893459378';
+  static const String _whatsappNumber = '918871448064'; // without +
+  static const String _callNumber = '+918871448064';
 
   Future<void> _openWhatsApp(BuildContext context) async {
     final uri = Uri.parse(
