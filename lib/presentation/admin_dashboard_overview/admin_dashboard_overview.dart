@@ -9,6 +9,7 @@ import 'widgets/revenue_chart_widget.dart';
 import 'widgets/recent_activity_widget.dart';
 import 'widgets/quick_actions_widget.dart';
 import 'widgets/admin_sidebar_widget.dart';
+import 'widgets/admin_scaffold.dart';
 
 class AdminDashboardOverview extends StatefulWidget {
   const AdminDashboardOverview({super.key});
@@ -53,70 +54,37 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: Row(
-        children: [
-          // Sidebar
-          const AdminSidebarWidget(),
-          
-          // Main Content
-          Expanded(
-            child: _isLoading 
-                ? const Center(child: CircularProgressIndicator())
-                : SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Header
-                        _buildHeader(),
-                        const SizedBox(height: 24),
-                        
-                        // Stats Cards
-                        _buildStatsCards(),
-                        const SizedBox(height: 24),
-                        
-                        // Charts and Activity Row
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Revenue Chart
-                            Expanded(
-                              flex: 2,
-                              child: RevenueChartWidget(
-                                analytics: _analytics,
-                                selectedTimeRange: _selectedTimeRange,
-                                onTimeRangeChanged: (range) {
-                                  setState(() => _selectedTimeRange = range);
-                                  _loadDashboardData();
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 24),
-                            
-                            // Recent Activity
-                            Expanded(
-                              flex: 1,
-                              child: RecentActivityWidget(
-                                activities: _recentActivity,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        
-                        // Quick Actions
-                        QuickActionsWidget(
-                          pendingApprovals: _analytics['pendingApprovals'] ?? 0,
-                          onRefresh: _loadDashboardData,
-                        ),
-                      ],
-                    ),
+    return AdminScaffold(
+      title: 'Dashboard',
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 24),
+                  _buildStatsCards(),
+                  const SizedBox(height: 24),
+                  RevenueChartWidget(
+                    analytics: _analytics,
+                    selectedTimeRange: _selectedTimeRange,
+                    onTimeRangeChanged: (range) {
+                      setState(() => _selectedTimeRange = range);
+                      _loadDashboardData();
+                    },
                   ),
-          ),
-        ],
-      ),
+                  const SizedBox(height: 24),
+                  RecentActivityWidget(activities: _recentActivity),
+                  const SizedBox(height: 24),
+                  QuickActionsWidget(
+                    pendingApprovals: _analytics['pendingApprovals'] ?? 0,
+                    onRefresh: _loadDashboardData,
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
