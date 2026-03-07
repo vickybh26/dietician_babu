@@ -5,6 +5,7 @@ android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 *.keystore
 *.jks
+android/key.properties
 env.json
 
 # Miscellaneous
