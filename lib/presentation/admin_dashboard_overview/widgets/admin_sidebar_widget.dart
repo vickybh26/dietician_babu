@@ -202,35 +202,40 @@ class _AdminSidebarWidgetState extends State<AdminSidebarWidget> {
   void _selectMenuItem(Map<String, dynamic> item) {
     setState(() => _selectedItem = item['title']);
 
-    // Close drawer if open
-    if (Navigator.canPop(context)) {
-      Navigator.pop(context);
-    }
-
     final route = item['route'] as String?;
     if (route == null) return;
 
-    switch (route) {
-      case '/admin-dashboard-overview':
-        Navigator.pushNamedAndRemoveUntil(
-            context, AppRoutes.adminDashboardOverview, (r) => false);
-        break;
-      case '/client-management-system':
-        Navigator.pushNamed(context, AppRoutes.clientManagementSystem);
-        break;
-      case '/diet-plans-management':
-        Navigator.pushNamed(context, AppRoutes.dietPlansManagement);
-        break;
-      case '/sales-analytics':
-        Navigator.pushNamed(context, AppRoutes.salesAnalytics);
-        break;
-      case '/subscriptions-management':
-        Navigator.pushNamed(context, AppRoutes.subscriptionsManagement);
-        break;
-      case '/admin-settings':
-        Navigator.pushNamed(context, AppRoutes.adminSettings);
-        break;
+    // Close drawer first (on mobile), then navigate
+    final scaffold = Scaffold.maybeOf(context);
+    if (scaffold != null && scaffold.isDrawerOpen) {
+      scaffold.closeDrawer();
     }
+
+    // Small delay to allow drawer close animation before navigating
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (!mounted) return;
+      switch (route) {
+        case '/admin-dashboard-overview':
+          Navigator.pushNamedAndRemoveUntil(
+              context, AppRoutes.adminDashboardOverview, (r) => false);
+          break;
+        case '/client-management-system':
+          Navigator.pushNamed(context, AppRoutes.clientManagementSystem);
+          break;
+        case '/diet-plans-management':
+          Navigator.pushNamed(context, AppRoutes.dietPlansManagement);
+          break;
+        case '/sales-analytics':
+          Navigator.pushNamed(context, AppRoutes.salesAnalytics);
+          break;
+        case '/subscriptions-management':
+          Navigator.pushNamed(context, AppRoutes.subscriptionsManagement);
+          break;
+        case '/admin-settings':
+          Navigator.pushNamed(context, AppRoutes.adminSettings);
+          break;
+      }
+    });
   }
 
   void _showLogoutDialog() {
