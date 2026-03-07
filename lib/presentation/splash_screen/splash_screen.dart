@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../../core/app_export.dart';
+import '../../services/firebase_service.dart';
+import '../../routes/app_routes.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -79,7 +81,6 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _initializeApp() async {
     try {
-      // Set status bar color to match brand blue
       SystemChrome.setSystemUIOverlayStyle(
         const SystemUiOverlayStyle(
           statusBarColor: Color(0xFF1976D2),
@@ -87,29 +88,23 @@ class _SplashScreenState extends State<SplashScreen>
         ),
       );
 
-      // Simulate initialization tasks
-      await Future.wait([
-        _checkAuthenticationStatus(),
-        _loadUserHealthProfile(),
-        _fetchPersonalizedMealPlans(),
-        _prepareCachedNutritionData(),
-      ]);
+      // Let animations play
+      await Future.delayed(const Duration(milliseconds: 1800));
 
+      if (!mounted) return;
       setState(() {
         _isInitialized = true;
         _statusMessage = 'Ready to start your journey!';
       });
 
-      // Wait for animations to complete before navigation
-      await Future.delayed(const Duration(milliseconds: 800));
+      await Future.delayed(const Duration(milliseconds: 500));
       _navigateToNextScreen();
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _statusMessage = 'Having trouble connecting...';
         _showRetryButton = true;
       });
-
-      // Auto retry after 5 seconds
       Future.delayed(const Duration(seconds: 5), () {
         if (_showRetryButton && mounted) {
           _retryInitialization();
@@ -118,35 +113,39 @@ class _SplashScreenState extends State<SplashScreen>
     }
   }
 
-  Future<void> _checkAuthenticationStatus() async {
-    // Simulate checking authentication
-    await Future.delayed(const Duration(milliseconds: 800));
-  }
+  Future<void> _navigateToNextScreen() async {
+    if (!mounted) return;
+    final fs = FirebaseService.instance;
+    final user = fs.currentUser;
 
-  Future<void> _loadUserHealthProfile() async {
-    // Simulate loading user health profile
-    await Future.delayed(const Duration(milliseconds: 600));
-  }
+    // Not logged in → Login screen
+    if (user == null) {
+      Navigator.pushReplacementNamed(context, AppRoutes.login);
+      return;
+    }
 
-  Future<void> _fetchPersonalizedMealPlans() async {
-    // Simulate fetching meal plans
-    await Future.delayed(const Duration(milliseconds: 700));
-  }
+    // Admin → Admin dashboard
+    if (fs.isAdmin) {
+      Navigator.pushReplacementNamed(context, AppRoutes.adminDashboardOverview);
+      return;
+    }
 
-  Future<void> _prepareCachedNutritionData() async {
-    // Simulate preparing nutrition data
-    await Future.delayed(const Duration(milliseconds: 500));
-  }
+    // Regular client — check if onboarding is complete
+    try {
+      setState(() => _statusMessage = 'Loading your profile...');
+      final profile = await fs.getUserProfile(user.uid);
+      if (!mounted) return;
 
-  void _navigateToNextScreen() {
-    // Navigation logic based on user state
-    // For demo purposes, we'll navigate to dashboard
-    // In real implementation, this would check:
-    // - Authentication status
-    // - Profile completion
-    // - Onboarding status
-
-    Navigator.pushReplacementNamed(context, '/dashboard-home');
+      final onboardingDone = profile?['onboardingComplete'] == true;
+      if (!onboardingDone) {
+        Navigator.pushReplacementNamed(context, AppRoutes.healthProfileOnboarding);
+      } else {
+        Navigator.pushReplacementNamed(context, AppRoutes.dashboardHome);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboardHome);
+    }
   }
 
   void _retryInitialization() {

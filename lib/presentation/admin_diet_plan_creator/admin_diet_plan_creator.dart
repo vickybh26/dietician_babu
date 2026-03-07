@@ -101,21 +101,30 @@ class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
 
   Future<void> _loadClients() async {
     try {
-      final snap = await FirebaseService.instance.users
-          .where('role', isEqualTo: 'client')
-          .get();
+      // Query clients collection directly — works regardless of role field in users
+      final clientsSnap = await FirebaseService.instance.clients.get();
 
       final List<Map<String, dynamic>> list = [];
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        data['uid'] = doc.id;
-        // Fetch client profile too
-        final clientSnap =
-            await FirebaseService.instance.clients.doc(doc.id).get();
-        if (clientSnap.exists) {
-          data['profile'] = clientSnap.data();
+      for (final doc in clientsSnap.docs) {
+        final clientDocData = doc.data();
+        final entry = <String, dynamic>{};
+        entry['uid'] = doc.id;
+        // Health profile data lives directly in the clients doc
+        entry['profile'] = clientDocData;
+
+        // Fetch display info from users collection
+        final userSnap = await FirebaseService.instance.users.doc(doc.id).get();
+        if (userSnap.exists) {
+          final ud = userSnap.data()!;
+          entry['email'] = ud['email'] ?? '';
+          entry['phone'] = ud['phone'] ?? '';
+          entry['displayName'] = ud['displayName'] ?? ud['name'] ?? '';
+        } else {
+          entry['email'] = clientDocData['email'] ?? '';
+          entry['phone'] = clientDocData['phone'] ?? '';
+          entry['displayName'] = '';
         }
-        list.add(data);
+        list.add(entry);
       }
 
       if (mounted) setState(() {
@@ -405,8 +414,9 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
       itemBuilder: (context, i) {
         final client = _clients[i];
         final uid = client['uid'] as String;
-        final email = client['email'] as String? ?? '';
-        final phone = client['phone'] as String? ?? '';
+        final email = (client['email'] as String?) ?? '';
+        final phone = (client['phone'] as String?) ?? '';
+        final displayName = (client['displayName'] as String?) ?? '';
         final profile = client['profile'] as Map<String, dynamic>?;
         final isSelected = _selectedClientId == uid;
 
@@ -461,12 +471,20 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        email.isNotEmpty ? email : phone,
+                        displayName.isNotEmpty
+                            ? displayName
+                            : (email.isNotEmpty ? email : phone),
                         style: const TextStyle(
                             fontWeight: FontWeight.w700, fontSize: 14),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (email.isNotEmpty && displayName.isNotEmpty)
+                        Text(email,
+                            style: TextStyle(
+                                color: Colors.grey.shade500, fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
                       SizedBox(height: 3),
                       Text(name,
                           style: TextStyle(

@@ -138,32 +138,31 @@ class _DietPlansManagementState extends State<DietPlansManagement> {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       color: Colors.white,
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Diet Plans', style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.grey[800])),
-              Text('${_plans.length} plans created', style: GoogleFonts.inter(color: Colors.grey[600])),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Diet Plans', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey[800])),
+                Text('${_plans.length} plans created', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600])),
+              ],
+            ),
           ),
-          Row(
-            children: [
-              IconButton(onPressed: _loadPlans, icon: const Icon(Icons.refresh), tooltip: 'Refresh'),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                onPressed: () => Navigator.pushNamed(context, AppRoutes.adminDietPlanCreator).then((_) => _loadPlans()),
-                icon: const Icon(Icons.auto_awesome_rounded),
-                label: const Text('Create AI Plan'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF61b239),
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
+          IconButton(onPressed: _loadPlans, icon: const Icon(Icons.refresh), tooltip: 'Refresh'),
+          const SizedBox(width: 4),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.adminDietPlanCreator).then((_) => _loadPlans()),
+            icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+            label: const Text('Create AI Plan'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF61b239),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
           ),
         ],
       ),

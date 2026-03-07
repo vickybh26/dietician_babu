@@ -330,6 +330,17 @@ class _SubscriptionPlansState extends State<SubscriptionPlans> {
                                 fontWeight: FontWeight.w700)),
                   ),
                 ),
+                SizedBox(height: 0.5.h),
+                TextButton(
+                  onPressed: () => Navigator.pushReplacementNamed(context, '/dashboard-home'),
+                  child: Text(
+                    'Already subscribed? Enter the app →',
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

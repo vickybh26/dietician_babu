@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../services/client_management_service.dart';
-import '../admin_dashboard_overview/widgets/admin_sidebar_widget.dart';
+import '../admin_dashboard_overview/widgets/admin_scaffold.dart';
 import 'widgets/pending_approvals_tab_widget.dart';
 import 'widgets/active_clients_tab_widget.dart';
 import 'widgets/client_detail_modal_widget.dart';
@@ -66,74 +66,64 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: Row(
+    return AdminScaffold(
+      title: 'Client Management',
+      body: Column(
         children: [
-          // Sidebar
-          const AdminSidebarWidget(),
-          
-          // Main Content
+          // Header
+          _buildHeader(),
+
+          // Search and Filter
+          ClientSearchFilterWidget(
+            searchQuery: _searchQuery,
+            selectedFilter: _selectedFilter,
+            onSearchChanged: (query) {
+              setState(() => _searchQuery = query);
+              _filterClients();
+            },
+            onFilterChanged: (filter) {
+              setState(() => _selectedFilter = filter);
+              _filterClients();
+            },
+          ),
+
+          // Tab Bar
+          _buildTabBar(),
+
+          // Tab Content
           Expanded(
-            child: Column(
-              children: [
-                // Header
-                _buildHeader(),
-                
-                // Search and Filter
-                ClientSearchFilterWidget(
-                  searchQuery: _searchQuery,
-                  selectedFilter: _selectedFilter,
-                  onSearchChanged: (query) {
-                    setState(() => _searchQuery = query);
-                    _filterClients();
-                  },
-                  onFilterChanged: (filter) {
-                    setState(() => _selectedFilter = filter);
-                    _filterClients();
-                  },
-                ),
-                
-                // Tab Bar
-                _buildTabBar(),
-                
-                // Tab Content
-                Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : TabBarView(
-                          controller: _tabController,
-                          children: [
-                            PendingApprovalsTabWidget(
-                              clients: _pendingClients,
-                              selectedClients: _selectedClients,
-                              onClientSelected: _handleClientSelection,
-                              onApproveClient: _approveClient,
-                              onRejectClient: _rejectClient,
-                              onBulkApprove: _bulkApproveClients,
-                              onViewDetails: _showClientDetails,
-                            ),
-                            ActiveClientsTabWidget(
-                              clients: _activeClients,
-                              searchQuery: _searchQuery,
-                              onViewDetails: _showClientDetails,
-                              onUpdateStatus: _updateClientStatus,
-                              onSendMessage: _sendMessage,
-                            ),
-                            ActiveClientsTabWidget(
-                              clients: _inactiveClients,
-                              searchQuery: _searchQuery,
-                              isInactive: true,
-                              onViewDetails: _showClientDetails,
-                              onUpdateStatus: _updateClientStatus,
-                              onSendMessage: _sendMessage,
-                            ),
-                            _buildFlaggedAccountsTab(),
-                          ],
-                        ),
-                ),
-              ],
-            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      PendingApprovalsTabWidget(
+                        clients: _pendingClients,
+                        selectedClients: _selectedClients,
+                        onClientSelected: _handleClientSelection,
+                        onApproveClient: _approveClient,
+                        onRejectClient: _rejectClient,
+                        onBulkApprove: _bulkApproveClients,
+                        onViewDetails: _showClientDetails,
+                      ),
+                      ActiveClientsTabWidget(
+                        clients: _activeClients,
+                        searchQuery: _searchQuery,
+                        onViewDetails: _showClientDetails,
+                        onUpdateStatus: _updateClientStatus,
+                        onSendMessage: _sendMessage,
+                      ),
+                      ActiveClientsTabWidget(
+                        clients: _inactiveClients,
+                        searchQuery: _searchQuery,
+                        isInactive: true,
+                        onViewDetails: _showClientDetails,
+                        onUpdateStatus: _updateClientStatus,
+                        onSendMessage: _sendMessage,
+                      ),
+                      _buildFlaggedAccountsTab(),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -142,72 +132,64 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: Colors.grey, width: 0.2)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Client Management System',
-                style: GoogleFonts.inter(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[800],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Client Management',
+                      style: GoogleFonts.inter(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    Text(
+                      'Manage approvals, subscriptions & communications',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                'Manage client approvals, subscriptions, and communications',
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              // Statistics
-              _buildStatCard(
-                'Pending',
-                _pendingClients.length.toString(),
-                Colors.orange,
-              ),
-              const SizedBox(width: 16),
-              _buildStatCard(
-                'Active',
-                _activeClients.length.toString(),
-                Colors.green,
-              ),
-              const SizedBox(width: 16),
-              _buildStatCard(
-                'Inactive',
-                _inactiveClients.length.toString(),
-                Colors.red,
-              ),
-              const SizedBox(width: 24),
-              
-              // Actions
               IconButton(
                 onPressed: _loadClientData,
                 icon: const Icon(Icons.refresh),
                 tooltip: 'Refresh Data',
               ),
-              const SizedBox(width: 8),
               ElevatedButton.icon(
                 onPressed: _exportClientData,
-                icon: const Icon(Icons.file_download),
-                label: const Text('Export Data'),
+                icon: const Icon(Icons.file_download, size: 16),
+                label: const Text('Export'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF1976D2),
                   foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _buildStatCard('Pending', _pendingClients.length.toString(), Colors.orange),
+              const SizedBox(width: 12),
+              _buildStatCard('Active', _activeClients.length.toString(), Colors.green),
+              const SizedBox(width: 12),
+              _buildStatCard('Inactive', _inactiveClients.length.toString(), Colors.red),
             ],
           ),
         ],

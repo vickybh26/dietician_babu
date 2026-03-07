@@ -199,26 +199,35 @@ class _SubscriptionsManagementState extends State<SubscriptionsManagement> {
 
   Widget _buildHeader(int active, int expiring, int expired) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       color: Colors.white,
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Subscriptions', style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.grey[800])),
-                Text('Manage all client subscription plans', style: GoogleFonts.inter(color: Colors.grey[600])),
-              ],
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Subscriptions', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey[800])),
+                    Text('Manage all client subscription plans', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600])),
+                  ],
+                ),
+              ),
+              IconButton(onPressed: _loadSubscriptions, icon: const Icon(Icons.refresh)),
+            ],
           ),
-          _chip('Active', '$active', Colors.green),
-          const SizedBox(width: 8),
-          _chip('Expiring Soon', '$expiring', Colors.orange),
-          const SizedBox(width: 8),
-          _chip('Expired', '$expired', Colors.red),
-          const SizedBox(width: 8),
-          IconButton(onPressed: _loadSubscriptions, icon: const Icon(Icons.refresh)),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _chip('Active', '$active', Colors.green),
+              _chip('Expiring Soon', '$expiring', Colors.orange),
+              _chip('Expired', '$expired', Colors.red),
+            ],
+          ),
         ],
       ),
     );

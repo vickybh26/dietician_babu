@@ -477,7 +477,8 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
 
     if (mounted) {
       Navigator.of(context).pop(); // Close dialog
-      Navigator.pushReplacementNamed(context, '/dashboard-home');
+      // Go to subscription plans so new users can subscribe
+      Navigator.pushReplacementNamed(context, '/subscription-plans');
     }
   }
 

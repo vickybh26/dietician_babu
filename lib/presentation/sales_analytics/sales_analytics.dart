@@ -118,7 +118,7 @@ class _SalesAnalyticsState extends State<SalesAnalytics> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -126,14 +126,23 @@ class _SalesAnalyticsState extends State<SalesAnalytics> {
                   const SizedBox(height: 24),
                   _buildSummaryCards(),
                   const SizedBox(height: 24),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildPlanBreakdown()),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildMonthlyBreakdown()),
-                    ],
-                  ),
+                  LayoutBuilder(builder: (context, constraints) {
+                    if (constraints.maxWidth >= 500) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: _buildPlanBreakdown()),
+                          const SizedBox(width: 16),
+                          Expanded(child: _buildMonthlyBreakdown()),
+                        ],
+                      );
+                    }
+                    return Column(children: [
+                      _buildPlanBreakdown(),
+                      const SizedBox(height: 16),
+                      _buildMonthlyBreakdown(),
+                    ]);
+                  }),
                   const SizedBox(height: 24),
                   _buildTransactionsList(),
                 ],
@@ -159,17 +168,21 @@ class _SalesAnalyticsState extends State<SalesAnalytics> {
   }
 
   Widget _buildSummaryCards() {
-    return Row(
-      children: [
-        _statCard('Total Revenue', '₹${NumberFormat('#,##,###').format(_totalRevenue)}', Icons.account_balance_wallet, const Color(0xFF2E7D32), '$_totalTransactions transactions'),
-        const SizedBox(width: 16),
-        _statCard('This Month', '₹${NumberFormat('#,##,###').format(_monthlyRevenue)}', Icons.calendar_month, const Color(0xFF1976D2), '$_monthlyTransactions new payments'),
-        const SizedBox(width: 16),
-        _statCard('Avg. Order', _totalTransactions > 0 ? '₹${NumberFormat('#,###').format(_totalRevenue / _totalTransactions)}' : '₹0', Icons.trending_up, const Color(0xFFf5a40d), 'Per transaction'),
-        const SizedBox(width: 16),
-        _statCard('Plans Sold', '$_totalTransactions', Icons.receipt_long, const Color(0xFF9C27B0), 'Total subscriptions'),
-      ],
-    );
+    final c1 = _statCard('Total Revenue', '₹${NumberFormat('#,##,###').format(_totalRevenue)}', Icons.account_balance_wallet, const Color(0xFF2E7D32), '$_totalTransactions transactions');
+    final c2 = _statCard('This Month', '₹${NumberFormat('#,##,###').format(_monthlyRevenue)}', Icons.calendar_month, const Color(0xFF1976D2), '$_monthlyTransactions new payments');
+    final c3 = _statCard('Avg. Order', _totalTransactions > 0 ? '₹${NumberFormat('#,###').format(_totalRevenue / _totalTransactions)}' : '₹0', Icons.trending_up, const Color(0xFFf5a40d), 'Per transaction');
+    final c4 = _statCard('Plans Sold', '$_totalTransactions', Icons.receipt_long, const Color(0xFF9C27B0), 'Total subscriptions');
+
+    return LayoutBuilder(builder: (context, constraints) {
+      if (constraints.maxWidth >= 600) {
+        return Row(children: [c1, const SizedBox(width: 16), c2, const SizedBox(width: 16), c3, const SizedBox(width: 16), c4]);
+      }
+      return Column(children: [
+        Row(children: [c1, const SizedBox(width: 12), c2]),
+        const SizedBox(height: 12),
+        Row(children: [c3, const SizedBox(width: 12), c4]),
+      ]);
+    });
   }
 
   Widget _statCard(String title, String value, IconData icon, Color color, String sub) {
