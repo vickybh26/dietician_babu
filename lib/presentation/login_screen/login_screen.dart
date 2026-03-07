@@ -283,7 +283,7 @@ class _LoginScreenState extends State<LoginScreen>
                     ),
                     GestureDetector(
                       onTap: () => Navigator.pushNamed(
-                          context, '/health-profile-onboarding'),
+                          context, '/signup'),
                       child: Text(
                         'Get Started',
                         style: TextStyle(

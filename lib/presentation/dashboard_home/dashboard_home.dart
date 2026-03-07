@@ -249,7 +249,7 @@ class _DashboardHomeState extends State<DashboardHome>
   Future<void> _handleLogout() async {
     await FirebaseService.instance.signOut();
     if (mounted) {
-      Navigator.pushReplacementNamed(context, '/login-screen');
+      Navigator.pushReplacementNamed(context, '/landing');
     }
   }
 

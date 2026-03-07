@@ -118,7 +118,7 @@ class _AdminSettingsState extends State<AdminSettings> {
                       const Divider(),
                       _infoRow(Icons.business, 'Business', 'Dietician Babu, Indore'),
                       const Divider(),
-                      _infoRow(Icons.code, 'Version', '1.1.0'),
+                      _infoRow(Icons.code, 'Version', '1.2.0'),
                     ],
                   ),
                   const SizedBox(height: 32),

@@ -118,9 +118,9 @@ class _SplashScreenState extends State<SplashScreen>
     final fs = FirebaseService.instance;
     final user = fs.currentUser;
 
-    // Not logged in → Login screen
+    // Not logged in → Landing screen (public marketing page)
     if (user == null) {
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
+      Navigator.pushReplacementNamed(context, AppRoutes.landing);
       return;
     }
 

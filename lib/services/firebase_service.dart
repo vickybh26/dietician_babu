@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../config/secrets.dart';
 
@@ -33,16 +34,22 @@ class FirebaseService {
 
   static Future<void> initialize() async {
     if (Firebase.apps.isNotEmpty) return;
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: AppSecrets.firebaseApiKey,
-        authDomain: 'dietician-babu-31ka2.firebaseapp.com',
-        projectId: 'dietician-babu-31ka2',
-        storageBucket: 'dietician-babu-31ka2.firebasestorage.app',
-        messagingSenderId: '793278867167',
-        appId: '1:793278867167:web:a2f5f6808ea2e8b7392b6a',
-      ),
-    );
+    if (kIsWeb) {
+      // Web: use explicit FirebaseOptions
+      await Firebase.initializeApp(
+        options: const FirebaseOptions(
+          apiKey: AppSecrets.firebaseApiKey,
+          authDomain: 'dietician-babu-31ka2.firebaseapp.com',
+          projectId: 'dietician-babu-31ka2',
+          storageBucket: 'dietician-babu-31ka2.firebasestorage.app',
+          messagingSenderId: '793278867167',
+          appId: '1:793278867167:web:a2f5f6808ea2e8b7392b6a',
+        ),
+      );
+    } else {
+      // Android / iOS: auto-configure from google-services.json / GoogleService-Info.plist
+      await Firebase.initializeApp();
+    }
   }
 
   bool get isAdmin =>

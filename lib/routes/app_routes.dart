@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../presentation/splash_screen/splash_screen.dart';
+import '../presentation/landing_screen/landing_screen.dart';
 import '../presentation/login_screen/login_screen.dart';
+import '../presentation/signup_screen/signup_screen.dart';
 import '../presentation/health_profile_onboarding/health_profile_onboarding.dart';
 import '../presentation/progress_tracking/progress_tracking.dart';
 import '../presentation/dashboard_home/dashboard_home.dart';
@@ -19,7 +21,9 @@ import '../presentation/admin_settings/admin_settings.dart';
 class AppRoutes {
   static const String initial = '/';
   static const String splash = '/splash-screen';
+  static const String landing = '/landing';
   static const String login = '/login-screen';
+  static const String signup = '/signup';
   static const String healthProfileOnboarding = '/health-profile-onboarding';
   static const String progressTracking = '/progress-tracking';
   static const String dashboardHome = '/dashboard-home';
@@ -38,7 +42,9 @@ class AppRoutes {
   static Map<String, WidgetBuilder> routes = {
     initial: (context) => const SplashScreen(),
     splash: (context) => const SplashScreen(),
+    landing: (context) => const LandingScreen(),
     login: (context) => const LoginScreen(),
+    signup: (context) => const SignupScreen(),
     healthProfileOnboarding: (context) => const HealthProfileOnboarding(),
     progressTracking: (context) => const ProgressTracking(),
     dashboardHome: (context) => const DashboardHome(),
