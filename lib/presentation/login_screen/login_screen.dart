@@ -165,6 +165,22 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  // ─── Google Sign-In ─────────────────────────────────────────────────────────
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isLoading = true);
+    try {
+      final cred = await FirebaseService.instance.signInWithGoogle();
+      await _afterLogin(cred);
+    } catch (e) {
+      final msg = e.toString().contains('cancelled')
+          ? 'Sign-in cancelled'
+          : 'Google sign-in failed. Please try again.';
+      _showSnack(msg, error: !e.toString().contains('cancelled'));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   // ─── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -212,6 +228,48 @@ class _LoginScreenState extends State<LoginScreen>
                       _buildPhoneTab(),
                       _buildEmailTab(),
                     ],
+                  ),
+                ),
+
+                SizedBox(height: 2.h),
+
+                // ─── Google Sign-In divider ─────────────────────────────
+                Row(children: [
+                  Expanded(child: Divider(color: Colors.grey.shade300)),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 3.w),
+                    child: Text('or', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                  ),
+                  Expanded(child: Divider(color: Colors.grey.shade300)),
+                ]),
+                SizedBox(height: 2.h),
+
+                // ─── Google button ──────────────────────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _isLoading ? null : _handleGoogleSignIn,
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                      padding: EdgeInsets.symmetric(vertical: 1.4.h),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      backgroundColor: Colors.white,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const _GoogleIcon(),
+                        SizedBox(width: 3.w),
+                        const Text(
+                          'Continue with Google',
+                          style: TextStyle(
+                            color: Color(0xFF3C4043),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
 
@@ -442,4 +500,27 @@ class _LoginScreenState extends State<LoginScreen>
             style:
                 const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
       );
+}
+
+// ─── Google coloured "G" icon ────────────────────────────────────────────────
+class _GoogleIcon extends StatelessWidget {
+  const _GoogleIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    // Simple coloured G using RichText — no external assets needed
+    return RichText(
+      text: const TextSpan(
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'sans-serif'),
+        children: [
+          TextSpan(text: 'G', style: TextStyle(color: Color(0xFF4285F4))),
+          TextSpan(text: 'o', style: TextStyle(color: Color(0xFFEA4335))),
+          TextSpan(text: 'o', style: TextStyle(color: Color(0xFFFBBC05))),
+          TextSpan(text: 'g', style: TextStyle(color: Color(0xFF4285F4))),
+          TextSpan(text: 'l', style: TextStyle(color: Color(0xFF34A853))),
+          TextSpan(text: 'e', style: TextStyle(color: Color(0xFFEA4335))),
+        ],
+      ),
+    );
+  }
 }

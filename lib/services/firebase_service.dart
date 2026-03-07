@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../config/secrets.dart';
 
@@ -91,7 +92,23 @@ class FirebaseService {
   Future<void> sendPasswordReset(String email) =>
       auth.sendPasswordResetEmail(email: email);
 
-  Future<void> signOut() => auth.signOut();
+  /// Google Sign-In
+  Future<UserCredential> signInWithGoogle() async {
+    final googleUser = await GoogleSignIn().signIn();
+    if (googleUser == null) throw Exception('Google sign-in cancelled');
+
+    final googleAuth = await googleUser.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+    return auth.signInWithCredential(credential);
+  }
+
+  Future<void> signOut() async {
+    await GoogleSignIn().signOut().catchError((_) {}); // also sign out Google
+    await auth.signOut();
+  }
 
   // ─── Firestore helpers ────────────────────────────────────────────────────
 
