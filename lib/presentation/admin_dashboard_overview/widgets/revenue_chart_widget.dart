@@ -58,29 +58,34 @@ class RevenueChartWidget extends StatelessWidget {
                 ],
               ),
               // Time Range Selector
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: selectedTimeRange,
-                    items: ['This Week', 'This Month', 'Last 3 Months', 'This Year']
-                        .map((range) => DropdownMenuItem(
-                              value: range,
-                              child: Text(
-                                range,
-                                style: GoogleFonts.inter(fontSize: 14),
-                              ),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        onTimeRangeChanged(value);
-                      }
-                    },
+              SizedBox(
+                width: 130,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: selectedTimeRange,
+                      isExpanded: true,
+                      items: ['This Week', 'This Month', 'Last 3 Months', 'This Year']
+                          .map((range) => DropdownMenuItem(
+                                value: range,
+                                child: Text(
+                                  range,
+                                  style: GoogleFonts.inter(fontSize: 13),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          onTimeRangeChanged(value);
+                        }
+                      },
+                    ),
                   ),
                 ),
               ),

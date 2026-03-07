@@ -252,13 +252,14 @@ class _DietPlansManagementState extends State<DietPlansManagement> {
                 onPressed: () => Navigator.pushNamed(
                         context, AppRoutes.adminDietPlanCreator)
                     .then((_) => _loadPlans()),
-                icon: const Icon(Icons.auto_awesome_rounded, size: 18),
-                label: const Text('Create AI Plan'),
+                icon: const Icon(Icons.auto_awesome_rounded, size: 16),
+                label: const Text('New Plan',
+                    style: TextStyle(fontSize: 13)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF61b239),
                   foregroundColor: Colors.white,
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 ),
               ),
             ],

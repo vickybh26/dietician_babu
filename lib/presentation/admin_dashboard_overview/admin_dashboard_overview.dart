@@ -90,114 +90,94 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
 
   Widget _buildHeader() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Dashboard Overview',
-              style: GoogleFonts.inter(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Dashboard Overview',
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
               ),
-            ),
-            Text(
-              'Welcome back! Here\'s what\'s happening with your business today.',
-              style: GoogleFonts.inter(
-                fontSize: 16,
-                color: Colors.grey[600],
+              const SizedBox(height: 4),
+              Text(
+                'Here\'s what\'s happening today.',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        Row(
-          children: [
-            IconButton(
-              onPressed: _loadDashboardData,
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh Data',
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pushNamed(context, AppRoutes.adminDietPlanCreator);
-              },
-              icon: const Icon(Icons.auto_awesome_rounded),
-              label: const Text('Create Diet Plan'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFf5a40d),
-                foregroundColor: Colors.white,
-              ),
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pushNamed(context, AppRoutes.clientManagementSystem);
-              },
-              icon: const Icon(Icons.people),
-              label: const Text('Manage Clients'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2E7D32),
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
+        IconButton(
+          onPressed: _loadDashboardData,
+          icon: const Icon(Icons.refresh),
+          tooltip: 'Refresh',
         ),
       ],
     );
   }
 
   Widget _buildStatsCards() {
-    return Row(
+    final pending = _analytics['pendingApprovals'] ?? 0;
+    return Column(
       children: [
-        Expanded(
-          child: StatsCardWidget(
-            title: 'Active Subscriptions',
-            value: '${_analytics['activeSubscriptions'] ?? 0}',
-            change: '+${_analytics['revenueGrowth']?.toStringAsFixed(1) ?? '0'}%',
-            changeColor: Colors.green,
-            icon: Icons.people_alt,
-            iconColor: const Color(0xFF2E7D32),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: StatsCardWidget(
+                title: 'Active Subscriptions',
+                value: '${_analytics['activeSubscriptions'] ?? 0}',
+                change: '+${_analytics['revenueGrowth']?.toStringAsFixed(1) ?? '0'}%',
+                changeColor: Colors.green,
+                icon: Icons.people_alt,
+                iconColor: const Color(0xFF2E7D32),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: StatsCardWidget(
+                title: 'Monthly Revenue',
+                value: '₹${(_analytics['totalRevenue'] ?? 0).toStringAsFixed(0)}',
+                change: 'This month',
+                changeColor: Colors.green,
+                icon: Icons.trending_up,
+                iconColor: const Color(0xFF1976D2),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: StatsCardWidget(
-            title: 'Monthly Revenue',
-            value: '₹${(_analytics['totalRevenue'] ?? 0).toStringAsFixed(0)}',
-            change: 'This month',
-            changeColor: Colors.green,
-            icon: Icons.trending_up,
-            iconColor: const Color(0xFF1976D2),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: StatsCardWidget(
-            title: 'Pending Approvals',
-            value: '${_analytics['pendingApprovals'] ?? 0}',
-            change: _analytics['pendingApprovals'] != null && _analytics['pendingApprovals'] > 0 
-                ? 'Needs attention' 
-                : 'All caught up',
-            changeColor: _analytics['pendingApprovals'] != null && _analytics['pendingApprovals'] > 0 
-                ? Colors.orange 
-                : Colors.green,
-            icon: Icons.pending_actions,
-            iconColor: const Color(0xFFFF9800),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: StatsCardWidget(
-            title: 'Total Clients',
-            value: '${_analytics['totalClients'] ?? 0}',
-            change: 'All registered',
-            changeColor: Colors.green,
-            icon: Icons.favorite,
-            iconColor: const Color(0xFFE91E63),
-          ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: StatsCardWidget(
+                title: 'Pending Approvals',
+                value: '$pending',
+                change: pending > 0 ? 'Action needed' : 'All clear',
+                changeColor: pending > 0 ? Colors.orange : Colors.green,
+                icon: Icons.pending_actions,
+                iconColor: const Color(0xFFFF9800),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: StatsCardWidget(
+                title: 'Total Clients',
+                value: '${_analytics['totalClients'] ?? 0}',
+                change: 'Registered',
+                changeColor: Colors.green,
+                icon: Icons.favorite,
+                iconColor: const Color(0xFFE91E63),
+              ),
+            ),
+          ],
         ),
       ],
     );

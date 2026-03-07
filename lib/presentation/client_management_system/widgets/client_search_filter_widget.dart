@@ -98,31 +98,6 @@ class ClientSearchFilterWidget extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          
-          // Date Range Filter
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey[300]!),
-              borderRadius: BorderRadius.circular(8),
-              color: Colors.grey[50],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.date_range, color: Colors.grey[600], size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Date Range',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
