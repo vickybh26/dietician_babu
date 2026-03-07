@@ -57,6 +57,36 @@ class DayPlan {
       };
 }
 
+// ─── Available tags ────────────────────────────────────────────────────────────
+
+const _kAllTags = [
+  'Veg',
+  'Non-Veg',
+  'Egg',
+  'High Protein',
+  'Diabetes',
+  'Gluten Free',
+  'Low Carb',
+  'Weight Loss',
+  'Weight Gain',
+  'Heart Healthy',
+];
+
+const _kTagColors = <String, Color>{
+  'Veg': Color(0xFF4CAF50),
+  'Non-Veg': Color(0xFFE53935),
+  'Egg': Color(0xFFFFA726),
+  'High Protein': Color(0xFF1565C0),
+  'Diabetes': Color(0xFF7B1FA2),
+  'Gluten Free': Color(0xFF00838F),
+  'Low Carb': Color(0xFF558B2F),
+  'Weight Loss': Color(0xFFD84315),
+  'Weight Gain': Color(0xFF37474F),
+  'Heart Healthy': Color(0xFFC62828),
+};
+
+Color tagColor(String tag) => _kTagColors[tag] ?? Colors.grey.shade600;
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 class AdminDietPlanCreator extends StatefulWidget {
@@ -67,24 +97,27 @@ class AdminDietPlanCreator extends StatefulWidget {
 }
 
 class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
-  // Step: 0=select client, 1=generating/editing, 2=done
+  // Step: 0=setup, 1=generating/editing, 2=done
   int _step = 0;
 
-  // Client selection
+  // Step 0 — plan setup
+  final _titleController = TextEditingController();
+  final _notesController = TextEditingController();
+  final Set<String> _selectedTags = {};
+
+  // Client selection (optional)
   String? _selectedClientId;
   Map<String, dynamic>? _selectedClientProfile;
   List<Map<String, dynamic>> _clients = [];
   bool _loadingClients = true;
+  bool _showClientList = false; // collapsible panel
 
-  // Plan
+  // Step 1 — plan content
   String _planTitle = '';
   String _planNotes = '';
   List<DayPlan> _weekPlan = [];
   bool _generating = false;
   bool _saving = false;
-
-  final _titleController = TextEditingController();
-  final _notesController = TextEditingController();
 
   @override
   void initState() {
@@ -101,18 +134,14 @@ class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
 
   Future<void> _loadClients() async {
     try {
-      // Query clients collection directly — works regardless of role field in users
       final clientsSnap = await FirebaseService.instance.clients.get();
-
       final List<Map<String, dynamic>> list = [];
       for (final doc in clientsSnap.docs) {
         final clientDocData = doc.data();
         final entry = <String, dynamic>{};
         entry['uid'] = doc.id;
-        // Health profile data lives directly in the clients doc
         entry['profile'] = clientDocData;
 
-        // Fetch display info from users collection
         final userSnap = await FirebaseService.instance.users.doc(doc.id).get();
         if (userSnap.exists) {
           final ud = userSnap.data()!;
@@ -126,11 +155,7 @@ class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
         }
         list.add(entry);
       }
-
-      if (mounted) setState(() {
-        _clients = list;
-        _loadingClients = false;
-      });
+      if (mounted) setState(() { _clients = list; _loadingClients = false; });
     } catch (e) {
       if (mounted) setState(() => _loadingClients = false);
     }
@@ -139,27 +164,27 @@ class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
   // ─── Gemini generation ─────────────────────────────────────────────────────
 
   Future<void> _generateWithGemini() async {
-    if (_selectedClientProfile == null) return;
     setState(() => _generating = true);
 
-    final profile = _selectedClientProfile!;
+    final title = _titleController.text.trim();
+    final tags = _selectedTags.toList();
+    final profile = _selectedClientProfile;
 
-    final age = profile['age'] ?? 'unknown';
-    final weight = profile['weightKg'] ?? 'unknown';
-    final height = profile['heightCm'] ?? 'unknown';
-    final gender = profile['gender'] ?? 'unknown';
-    final goal = profile['goal'] ?? 'weight loss';
-    final activity = profile['activityLevel'] ?? 1.0;
-    final medicalConditions =
-        (profile['medicalConditions'] as List?)?.join(', ') ?? 'none';
-    final dietaryRestrictions =
-        (profile['dietaryRestrictions'] as List?)?.join(', ') ?? 'none';
-    final cuisines =
-        (profile['cuisines'] as List?)?.join(', ') ?? 'Indian';
+    String promptSuffix;
+    if (profile != null) {
+      final age = profile['age'] ?? 'unknown';
+      final weight = profile['weightKg'] ?? 'unknown';
+      final height = profile['heightCm'] ?? 'unknown';
+      final gender = profile['gender'] ?? 'unknown';
+      final goal = profile['goal'] ?? 'weight loss';
+      final activity = profile['activityLevel'] ?? 1.0;
+      final medicalConditions =
+          (profile['medicalConditions'] as List?)?.join(', ') ?? 'none';
+      final dietaryRestrictions =
+          (profile['dietaryRestrictions'] as List?)?.join(', ') ?? 'none';
+      final cuisines = (profile['cuisines'] as List?)?.join(', ') ?? 'Indian';
 
-    final prompt = '''
-You are an expert Indian dietician. Create a personalised 7-day diet plan for a client.
-
+      promptSuffix = '''
 CLIENT PROFILE:
 - Age: $age years
 - Gender: $gender
@@ -169,7 +194,36 @@ CLIENT PROFILE:
 - Activity level: $activity (1=sedentary, 2=lightly active, 3=moderately active, 4=very active)
 - Medical conditions: $medicalConditions
 - Dietary restrictions: $dietaryRestrictions
-- Preferred cuisines: $cuisines
+- Preferred cuisines: $cuisines''';
+    } else {
+      // General plan based on tags
+      final dietType = tags.contains('Non-Veg')
+          ? 'Non-Vegetarian Indian'
+          : tags.contains('Egg')
+              ? 'Eggetarian Indian'
+              : 'Vegetarian Indian';
+      final goals = tags
+          .where((t) => ['Weight Loss', 'Weight Gain', 'High Protein',
+              'Diabetes', 'Gluten Free', 'Low Carb', 'Heart Healthy'].contains(t))
+          .join(', ');
+
+      promptSuffix = '''
+CLIENT PROFILE:
+- General healthy Indian adult
+- Diet type: $dietType
+- Focus goals: ${goals.isNotEmpty ? goals : 'Balanced nutrition and general health'}
+- Cuisine: Indian''';
+    }
+
+    final tagList = tags.isNotEmpty ? tags.join(', ') : 'General';
+
+    final prompt = '''
+You are an expert Indian dietician. Create a personalised 7-day diet plan.
+
+$promptSuffix
+
+PLAN TAGS: $tagList
+PLAN TITLE: ${title.isNotEmpty ? title : '7-Day Diet Plan'}
 
 INSTRUCTIONS:
 1. Create a 7-day plan with Day 1 to Day 7.
@@ -177,13 +231,15 @@ INSTRUCTIONS:
 3. Each meal must have 2-4 food items.
 4. Each food item must include: name, quantity (e.g. "1 cup", "2 rotis"), approximate calories.
 5. Focus on Indian foods — dal, sabzi, roti, rice, curd, fruits, nuts, etc.
-6. Account for the medical conditions and dietary restrictions strictly.
-7. Keep it practical and easy to follow for a home cook in India.
+6. Strictly follow the dietary restrictions implied by the tags (e.g. if Veg, no meat/fish/eggs).
+7. If Diabetes tag: avoid sugar, white rice, refined flour. Use whole grains, millets, low-GI foods.
+8. If Gluten Free: avoid wheat/maida/roti, use rice, millets, sorghum instead.
+9. Keep it practical and easy to follow for a home cook in India.
 
 Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
 {
   "planTitle": "7-Day Diet Plan for [Goal]",
-  "notes": "Brief 1-2 line note for the client",
+  "notes": "Brief 1-2 line note about this plan",
   "days": [
     {
       "day": "Day 1",
@@ -205,7 +261,6 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
       final response = await model.generateContent([Content.text(prompt)]);
       final text = response.text ?? '';
 
-      // Extract JSON from response
       final jsonStart = text.indexOf('{');
       final jsonEnd = text.lastIndexOf('}');
       if (jsonStart == -1 || jsonEnd == -1) throw Exception('Invalid JSON');
@@ -225,12 +280,17 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
         );
       }).toList();
 
+      final generatedTitle = data['planTitle'] ?? '7-Day Diet Plan';
+      final generatedNotes = data['notes'] ?? '';
+
       if (mounted) {
         setState(() {
           _weekPlan = days;
-          _planTitle = data['planTitle'] ?? '7-Day Diet Plan';
-          _planNotes = data['notes'] ?? '';
-          _titleController.text = _planTitle;
+          _planTitle = title.isNotEmpty ? title : generatedTitle;
+          _planNotes = generatedNotes;
+          if (_titleController.text.isEmpty) {
+            _titleController.text = _planTitle;
+          }
           _notesController.text = _planNotes;
           _step = 1;
           _generating = false;
@@ -255,17 +315,20 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
         .toList();
   }
 
-  // ─── Save and push to client ───────────────────────────────────────────────
+  // ─── Save plan ─────────────────────────────────────────────────────────────
 
-  Future<void> _sendToClient() async {
-    if (_selectedClientId == null || _weekPlan.isEmpty) return;
+  Future<void> _savePlan() async {
+    if (_weekPlan.isEmpty) return;
     setState(() => _saving = true);
 
     try {
-      await FirebaseService.instance.plans.add({
-        'clientId': _selectedClientId,
-        'title': _titleController.text.trim(),
+      final docRef = await FirebaseService.instance.plans.add({
+        if (_selectedClientId != null) 'clientId': _selectedClientId,
+        'title': _titleController.text.trim().isNotEmpty
+            ? _titleController.text.trim()
+            : _planTitle,
         'notes': _notesController.text.trim(),
+        'tags': _selectedTags.toList(),
         'type': 'AI Generated',
         'weekPlan': _weekPlan.map((d) => d.toMap()).toList(),
         'uploadedAt': FieldValue.serverTimestamp(),
@@ -273,17 +336,22 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
         'format': 'structured',
       });
 
+      // If assigned to client, update their current plan reference
+      if (_selectedClientId != null) {
+        await FirebaseService.instance.clients.doc(_selectedClientId).set({
+          'currentPlanId': docRef.id,
+          'planAssignedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
       if (mounted) {
-        setState(() {
-          _saving = false;
-          _step = 2;
-        });
+        setState(() { _saving = false; _step = 2; });
       }
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Failed to send plan: $e'),
+          content: Text('Failed to save plan: $e'),
           backgroundColor: Colors.red.shade600,
           behavior: SnackBarBehavior.floating,
         ));
@@ -319,16 +387,10 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
   Widget _buildMainContent() {
     return Column(
       children: [
-        // Progress steps
         _buildStepBar(),
-
         Expanded(
-          child: _step == 0
-              ? _buildClientSelector()
-              : _buildPlanEditor(),
+          child: _step == 0 ? _buildPlanSetup() : _buildPlanEditor(),
         ),
-
-        // Bottom action
         _buildBottomBar(),
       ],
     );
@@ -340,25 +402,21 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
       padding: EdgeInsets.fromLTRB(4.w, 0, 4.w, 2.h),
       child: Row(
         children: [
-          _stepDot(1, 'Select Client', _step >= 0),
+          _stepDot(1, 'Plan Setup', _step >= 0),
           Expanded(
             child: Container(
               height: 2,
-              color: _step >= 1
-                  ? Colors.white
-                  : Colors.white.withOpacity(0.3),
+              color: _step >= 1 ? Colors.white : Colors.white.withOpacity(0.3),
             ),
           ),
           _stepDot(2, 'Edit Plan', _step >= 1),
           Expanded(
             child: Container(
               height: 2,
-              color: _step >= 2
-                  ? Colors.white
-                  : Colors.white.withOpacity(0.3),
+              color: _step >= 2 ? Colors.white : Colors.white.withOpacity(0.3),
             ),
           ),
-          _stepDot(3, 'Send', _step >= 2),
+          _stepDot(3, 'Done', _step >= 2),
         ],
       ),
     );
@@ -393,118 +451,222 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
         ],
       );
 
-  // ─── Step 0: Select client ─────────────────────────────────────────────────
+  // ─── Step 0: Plan setup ────────────────────────────────────────────────────
 
-  Widget _buildClientSelector() {
+  Widget _buildPlanSetup() {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(4.w),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Plan title
+          _sectionHeader('Plan Title'),
+          TextField(
+            controller: _titleController,
+            decoration: _inputDec('e.g. 7-Day Weight Loss Plan for Beginners'),
+            onChanged: (v) => _planTitle = v,
+          ),
+          SizedBox(height: 3.h),
+
+          // Tags
+          _sectionHeader('Tags'),
+          const Text(
+            'Select all that apply. These help filter and categorise plans.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          SizedBox(height: 1.h),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _kAllTags.map((tag) {
+              final selected = _selectedTags.contains(tag);
+              final color = tagColor(tag);
+              return FilterChip(
+                label: Text(tag),
+                selected: selected,
+                onSelected: (val) {
+                  setState(() {
+                    if (val) {
+                      _selectedTags.add(tag);
+                    } else {
+                      _selectedTags.remove(tag);
+                    }
+                  });
+                },
+                selectedColor: color.withOpacity(0.15),
+                checkmarkColor: color,
+                labelStyle: TextStyle(
+                  color: selected ? color : Colors.grey.shade700,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+                  fontSize: 13,
+                ),
+                side: BorderSide(
+                  color: selected ? color : Colors.grey.shade300,
+                  width: selected ? 1.5 : 1,
+                ),
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20)),
+              );
+            }).toList(),
+          ),
+          SizedBox(height: 3.h),
+
+          // Optional: assign to client
+          GestureDetector(
+            onTap: () => setState(() => _showClientList = !_showClientList),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _selectedClientId != null
+                      ? AppTheme.lightTheme.colorScheme.primary
+                      : Colors.grey.shade300,
+                  width: _selectedClientId != null ? 1.5 : 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.person_add_alt_1_rounded,
+                    color: _selectedClientId != null
+                        ? AppTheme.lightTheme.colorScheme.primary
+                        : Colors.grey.shade500,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Assign to a Client (optional)',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: _selectedClientId != null
+                                ? AppTheme.lightTheme.colorScheme.primary
+                                : Colors.grey.shade800,
+                          ),
+                        ),
+                        Text(
+                          _selectedClientId != null
+                              ? _getClientDisplayName(_selectedClientId!)
+                              : 'If selected, AI will personalise for their profile',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade500),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_selectedClientId != null)
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      color: Colors.red.shade400,
+                      onPressed: () => setState(() {
+                        _selectedClientId = null;
+                        _selectedClientProfile = null;
+                      }),
+                    )
+                  else
+                    Icon(
+                      _showClientList
+                          ? Icons.expand_less_rounded
+                          : Icons.expand_more_rounded,
+                      color: Colors.grey.shade400,
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          if (_showClientList && _selectedClientId == null) ...[
+            SizedBox(height: 1.h),
+            _buildClientListPanel(),
+          ],
+
+          SizedBox(height: 4.h),
+        ],
+      ),
+    );
+  }
+
+  String _getClientDisplayName(String uid) {
+    final client = _clients.firstWhere(
+      (c) => c['uid'] == uid,
+      orElse: () => {},
+    );
+    if (client.isEmpty) return uid;
+    final dn = client['displayName'] as String? ?? '';
+    final email = client['email'] as String? ?? '';
+    return dn.isNotEmpty ? dn : email.isNotEmpty ? email : uid;
+  }
+
+  Widget _buildClientListPanel() {
     if (_loadingClients) {
       return const Center(child: CircularProgressIndicator());
     }
-
     if (_clients.isEmpty) {
-      return Center(
+      return Padding(
+        padding: const EdgeInsets.all(12),
         child: Text('No clients found.',
             style: TextStyle(color: Colors.grey.shade500)),
       );
     }
+    return Container(
+      constraints: BoxConstraints(maxHeight: 30.h),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: ListView.builder(
+        shrinkWrap: true,
+        itemCount: _clients.length,
+        itemBuilder: (_, i) {
+          final client = _clients[i];
+          final uid = client['uid'] as String;
+          final displayName = (client['displayName'] as String?) ?? '';
+          final email = (client['email'] as String?) ?? '';
+          final phone = (client['phone'] as String?) ?? '';
+          final profile = client['profile'] as Map<String, dynamic>?;
+          final label = displayName.isNotEmpty
+              ? displayName
+              : email.isNotEmpty
+                  ? email
+                  : phone;
+          final sub = profile != null
+              ? '${profile['gender'] ?? ''} • ${profile['age'] ?? '?'}y • Goal: ${profile['goal'] ?? 'not set'}'
+              : 'No profile yet';
 
-    return ListView.separated(
-      padding: EdgeInsets.all(4.w),
-      itemCount: _clients.length,
-      separatorBuilder: (_, __) => SizedBox(height: 1.5.h),
-      itemBuilder: (context, i) {
-        final client = _clients[i];
-        final uid = client['uid'] as String;
-        final email = (client['email'] as String?) ?? '';
-        final phone = (client['phone'] as String?) ?? '';
-        final displayName = (client['displayName'] as String?) ?? '';
-        final profile = client['profile'] as Map<String, dynamic>?;
-        final isSelected = _selectedClientId == uid;
-
-        final name = profile != null
-            ? '${profile['gender'] ?? ''} • ${profile['age'] ?? '?'}y • ${profile['weightKg'] ?? '?'}kg'
-            : 'No profile yet';
-        final goal = profile?['goal'] as String? ?? 'Not set';
-
-        return GestureDetector(
-          onTap: () => setState(() {
-            _selectedClientId = uid;
-            _selectedClientProfile = profile;
-          }),
-          child: Container(
-            padding: EdgeInsets.all(4.w),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: isSelected
-                    ? AppTheme.lightTheme.colorScheme.primary
-                    : Colors.grey.shade200,
-                width: isSelected ? 2 : 1,
+          return ListTile(
+            leading: CircleAvatar(
+              backgroundColor:
+                  AppTheme.lightTheme.colorScheme.primary.withOpacity(0.1),
+              child: Text(
+                label.isNotEmpty ? label[0].toUpperCase() : '?',
+                style: TextStyle(
+                    color: AppTheme.lightTheme.colorScheme.primary,
+                    fontWeight: FontWeight.bold),
               ),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                          color: AppTheme.lightTheme.colorScheme.primary
-                              .withOpacity(0.12),
-                          blurRadius: 8)
-                    ]
-                  : [],
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppTheme.lightTheme.colorScheme.primary
-                        : Colors.grey.shade100,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.person_rounded,
-                      color: isSelected ? Colors.white : Colors.grey.shade400,
-                      size: 24),
-                ),
-                SizedBox(width: 3.w),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        displayName.isNotEmpty
-                            ? displayName
-                            : (email.isNotEmpty ? email : phone),
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 14),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (email.isNotEmpty && displayName.isNotEmpty)
-                        Text(email,
-                            style: TextStyle(
-                                color: Colors.grey.shade500, fontSize: 11),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
-                      SizedBox(height: 3),
-                      Text(name,
-                          style: TextStyle(
-                              color: Colors.grey.shade500, fontSize: 12)),
-                      Text('Goal: $goal',
-                          style: TextStyle(
-                              color: AppTheme.lightTheme.colorScheme.primary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-                if (isSelected)
-                  Icon(Icons.check_circle_rounded,
-                      color: AppTheme.lightTheme.colorScheme.primary, size: 24),
-              ],
-            ),
-          ),
-        );
-      },
+            title: Text(label,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600, fontSize: 14)),
+            subtitle: Text(sub,
+                style:
+                    TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            onTap: () => setState(() {
+              _selectedClientId = uid;
+              _selectedClientProfile = profile;
+              _showClientList = false;
+            }),
+          );
+        },
+      ),
     );
   }
 
@@ -528,8 +690,12 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                     fontSize: 16,
                     color: Colors.grey.shade700)),
             SizedBox(height: 1.h),
-            Text('Analysing client profile & crafting meals',
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+            Text(
+              _selectedClientProfile != null
+                  ? 'Personalising for client profile'
+                  : 'Crafting a plan based on selected tags',
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+            ),
           ],
         ),
       );
@@ -540,8 +706,34 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Plan title & notes
           _sectionHeader('Plan Details'),
+
+          // Tags display
+          if (_selectedTags.isNotEmpty) ...[
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: _selectedTags.map((tag) {
+                final color = tagColor(tag);
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: color.withOpacity(0.3)),
+                  ),
+                  child: Text(tag,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: color,
+                          fontWeight: FontWeight.w600)),
+                );
+              }).toList(),
+            ),
+            SizedBox(height: 1.5.h),
+          ],
+
           TextField(
             controller: _titleController,
             decoration: _inputDec('Plan Title'),
@@ -614,11 +806,13 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                     color: Colors.green.shade500, size: 52),
               ),
               SizedBox(height: 3.h),
-              const Text('Plan Sent! 🎉',
+              const Text('Plan Saved! 🎉',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               SizedBox(height: 1.h),
               Text(
-                'The diet plan has been pushed to your client. They can view it now in the My Diet Plan section.',
+                _selectedClientId != null
+                    ? 'The diet plan has been saved and assigned to the client. They can view it in the My Diet Plan section.'
+                    : 'The diet plan has been saved to your library. You can assign it to a client anytime.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
               ),
@@ -629,9 +823,11 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                     _step = 0;
                     _selectedClientId = null;
                     _selectedClientProfile = null;
+                    _selectedTags.clear();
                     _weekPlan = [];
                     _titleController.clear();
                     _notesController.clear();
+                    _showClientList = false;
                   });
                 },
                 icon: const Icon(Icons.add_rounded),
@@ -639,8 +835,8 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.lightTheme.colorScheme.primary,
                   foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(
-                      horizontal: 6.w, vertical: 1.5.h),
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 6.w, vertical: 1.5.h),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
@@ -648,7 +844,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
               SizedBox(height: 2.h),
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text('Back to Dashboard',
+                child: Text('Back to Diet Plans',
                     style: TextStyle(
                         color: AppTheme.lightTheme.colorScheme.primary)),
               ),
@@ -675,19 +871,20 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
           ? SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: (_selectedClientId != null && !_generating)
-                    ? _generateWithGemini
-                    : null,
+                onPressed: _generating ? null : _generateWithGemini,
                 icon: const Icon(Icons.auto_awesome_rounded, size: 20),
                 label: Text(
                   _generating
                       ? 'Generating...'
-                      : 'Generate Plan with Gemini AI',
+                      : _selectedClientId != null
+                          ? 'Generate Personalised Plan'
+                          : 'Generate Plan with AI',
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w700),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.lightTheme.colorScheme.primary,
+                  backgroundColor:
+                      AppTheme.lightTheme.colorScheme.primary,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(vertical: 1.8.h),
                   shape: RoundedRectangleBorder(
@@ -716,17 +913,18 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                 SizedBox(width: 3.w),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed:
-                        (_weekPlan.isNotEmpty && !_saving) ? _sendToClient : null,
+                    onPressed: (_weekPlan.isNotEmpty && !_saving)
+                        ? _savePlan
+                        : null,
                     icon: _saving
                         ? const SizedBox(
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.send_rounded, size: 20),
+                        : const Icon(Icons.save_rounded, size: 20),
                     label: Text(
-                      _saving ? 'Sending...' : 'Send to Client',
+                      _saving ? 'Saving...' : 'Save Plan',
                       style: const TextStyle(
                           fontSize: 15, fontWeight: FontWeight.w700),
                     ),
@@ -794,7 +992,6 @@ class _DayCardState extends State<_DayCard> {
       ),
       child: Column(
         children: [
-          // Day header
           GestureDetector(
             onTap: () => setState(() => _expanded = !_expanded),
             child: Container(
@@ -828,7 +1025,6 @@ class _DayCardState extends State<_DayCard> {
               ),
             ),
           ),
-
           if (_expanded)
             Padding(
               padding: EdgeInsets.all(4.w),
@@ -890,7 +1086,6 @@ class _MealSection extends StatelessWidget {
                 accentColor: color,
                 onChanged: onChanged,
               )),
-          // Add item button
           GestureDetector(
             onTap: () {
               items.add(MealEntry());
@@ -946,10 +1141,7 @@ class _EditableItem extends StatelessWidget {
             child: _inlineField(
               value: item.name,
               hint: 'Food item',
-              onChanged: (v) {
-                item.name = v;
-                onChanged();
-              },
+              onChanged: (v) { item.name = v; onChanged(); },
             ),
           ),
           SizedBox(width: 2.w),
@@ -958,10 +1150,7 @@ class _EditableItem extends StatelessWidget {
             child: _inlineField(
               value: item.quantity,
               hint: 'Qty',
-              onChanged: (v) {
-                item.quantity = v;
-                onChanged();
-              },
+              onChanged: (v) { item.quantity = v; onChanged(); },
             ),
           ),
           SizedBox(width: 2.w),
@@ -970,10 +1159,7 @@ class _EditableItem extends StatelessWidget {
             child: _inlineField(
               value: item.calories,
               hint: 'kcal',
-              onChanged: (v) {
-                item.calories = v;
-                onChanged();
-              },
+              onChanged: (v) { item.calories = v; onChanged(); },
             ),
           ),
         ],
