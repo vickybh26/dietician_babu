@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../services/firebase_service.dart';
 import './widgets/language_selector_widget.dart';
 import './widgets/notification_settings_widget.dart';
 import './widgets/profile_header_widget.dart';
@@ -932,16 +933,16 @@ class _SettingsProfileState extends State<SettingsProfile> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // Simulate biometric verification
-              _showBiometricVerification(() {
+              await FirebaseService().signOut();
+              if (context.mounted) {
                 Navigator.pushNamedAndRemoveUntil(
                   context,
                   '/login-screen',
                   (route) => false,
                 );
-              });
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
