@@ -27,7 +27,7 @@ class FirebaseService {
   FirebaseService._();
 
   FirebaseAuth get auth => FirebaseAuth.instance;
-  FirebaseFirestore get db => FirebaseFirestore.instance;
+  FirebaseFirestore get db => FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'dieticianbabu');
   FirebaseStorage get storage => FirebaseStorage.instance;
 
   static Future<void> initialize() async {
