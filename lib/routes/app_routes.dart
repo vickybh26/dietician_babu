@@ -11,6 +11,10 @@ import '../presentation/weekly_checkin/weekly_checkin.dart';
 import '../presentation/diet_plan_viewer/diet_plan_viewer.dart';
 import '../presentation/subscription_plans/subscription_plans.dart';
 import '../presentation/admin_diet_plan_creator/admin_diet_plan_creator.dart';
+import '../presentation/diet_plans_management/diet_plans_management.dart';
+import '../presentation/sales_analytics/sales_analytics.dart';
+import '../presentation/subscriptions_management/subscriptions_management.dart';
+import '../presentation/admin_settings/admin_settings.dart';
 
 class AppRoutes {
   static const String initial = '/';
@@ -26,6 +30,10 @@ class AppRoutes {
   static const String dietPlanViewer = '/diet-plan-viewer';
   static const String subscriptionPlans = '/subscription-plans';
   static const String adminDietPlanCreator = '/admin-diet-plan-creator';
+  static const String dietPlansManagement = '/diet-plans-management';
+  static const String salesAnalytics = '/sales-analytics';
+  static const String subscriptionsManagement = '/subscriptions-management';
+  static const String adminSettings = '/admin-settings';
 
   static Map<String, WidgetBuilder> routes = {
     initial: (context) => const SplashScreen(),
@@ -41,5 +49,9 @@ class AppRoutes {
     dietPlanViewer: (context) => const DietPlanViewer(),
     subscriptionPlans: (context) => const SubscriptionPlans(),
     adminDietPlanCreator: (context) => const AdminDietPlanCreator(),
+    dietPlansManagement: (context) => const DietPlansManagement(),
+    salesAnalytics: (context) => const SalesAnalytics(),
+    subscriptionsManagement: (context) => const SubscriptionsManagement(),
+    adminSettings: (context) => const AdminSettings(),
   };
 }

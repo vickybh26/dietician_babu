@@ -106,6 +106,8 @@ class FirebaseService {
       db.collection('followUps');
   CollectionReference<Map<String, dynamic>> get payments =>
       db.collection('payments');
+  CollectionReference<Map<String, dynamic>> get messages =>
+      db.collection('messages');
 
   /// Create or merge user doc after login
   Future<void> upsertUser(User user, {bool onboardingComplete = false}) async {

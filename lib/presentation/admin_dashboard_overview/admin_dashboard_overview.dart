@@ -199,7 +199,7 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
           child: StatsCardWidget(
             title: 'Monthly Revenue',
             value: '₹${(_analytics['totalRevenue'] ?? 0).toStringAsFixed(0)}',
-            change: '+12.5%',
+            change: 'This month',
             changeColor: Colors.green,
             icon: Icons.trending_up,
             iconColor: const Color(0xFF1976D2),
@@ -223,9 +223,9 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
         const SizedBox(width: 16),
         Expanded(
           child: StatsCardWidget(
-            title: 'Client Retention',
-            value: '92%',
-            change: '+3.2%',
+            title: 'Total Clients',
+            value: '${_analytics['totalClients'] ?? 0}',
+            change: 'All registered',
             changeColor: Colors.green,
             icon: Icons.favorite,
             iconColor: const Color(0xFFE91E63),
