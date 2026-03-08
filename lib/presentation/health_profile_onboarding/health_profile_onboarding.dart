@@ -447,6 +447,11 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
     try {
       final uid = FirebaseService.instance.currentUser?.uid;
       if (uid != null) {
+        // Check if startingWeightKg already set (never overwrite on re-onboarding)
+        final existing = await FirebaseService.instance.clients.doc(uid).get();
+        final alreadyHasStartingWeight =
+            existing.exists && existing.data()?['startingWeightKg'] != null;
+
         // Save health profile to Firestore
         await FirebaseService.instance.clients.doc(uid).set({
           'goal': _selectedGoal,
@@ -454,6 +459,8 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
           'age': _age,
           'heightCm': _height,
           'weightKg': _weight,
+          // Set ONCE on first onboarding — used to compute weight lost
+          if (!alreadyHasStartingWeight) 'startingWeightKg': _weight,
           'gender': _gender,
           'medicalConditions': _selectedMedicalConditions,
           'cuisines': _selectedCuisines,

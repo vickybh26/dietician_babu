@@ -562,13 +562,13 @@ class _DashboardHomeState extends State<DashboardHome>
         // Already on home
         break;
       case 1:
-        // Navigate to meals screen
+        Navigator.pushNamed(context, '/diet-plan-viewer');
         break;
       case 2:
         Navigator.pushNamed(context, '/progress-tracking');
         break;
       case 3:
-        // Navigate to chat screen
+        Navigator.pushNamed(context, '/weekly-checkin');
         break;
       case 4:
         Navigator.pushNamed(context, '/settings-profile');

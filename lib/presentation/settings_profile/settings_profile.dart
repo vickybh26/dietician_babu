@@ -1,5 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
@@ -25,6 +27,11 @@ class _SettingsProfileState extends State<SettingsProfile> {
   String _currentPlan = 'No active plan';
   bool _isLoading = true;
 
+  // Computed profile stats from Firebase
+  int _daysActive = 0;
+  double _weightLost = 0.0;
+  int _totalCheckIns = 0;
+
   // Settings state
   String selectedTheme = 'System';
   String selectedLanguage = 'en';
@@ -49,31 +56,78 @@ class _SettingsProfileState extends State<SettingsProfile> {
     final user = FirebaseService.instance.currentUser;
     if (user == null) return;
     try {
-      final userSnap = await FirebaseService.instance.users.doc(user.uid).get();
-      final clientSnap =
-          await FirebaseService.instance.clients.doc(user.uid).get();
+      // Fetch user doc, client doc and weekly check-ins in parallel
+      final results = await Future.wait([
+        FirebaseService.instance.users.doc(user.uid).get(),
+        FirebaseService.instance.clients.doc(user.uid).get(),
+        FirebaseService.instance.weeklyUpdates
+            .where('clientId', isEqualTo: user.uid)
+            .orderBy('submittedAt')
+            .get(),
+      ]);
+
+      final userSnap = results[0] as DocumentSnapshot<Map<String, dynamic>>;
+      final clientSnap = results[1] as DocumentSnapshot<Map<String, dynamic>>;
+      final checkInsSnap = results[2] as QuerySnapshot<Map<String, dynamic>>;
+
       if (mounted) {
-        setState(() {
-          _userName = userSnap.data()?['name'] as String? ??
-              user.displayName ??
-              user.email?.split('@').first ??
-              'User';
-          _userEmail =
-              userSnap.data()?['email'] as String? ?? user.email ?? '';
-          _userPhone = userSnap.data()?['phone'] as String? ?? '';
-          if (clientSnap.exists) {
-            final plan =
-                clientSnap.data()?['subscriptionPlan'] as String? ?? '';
-            final status =
-                clientSnap.data()?['subscriptionStatus'] as String? ?? '';
-            _currentPlan = (plan.isNotEmpty && status == 'active')
-                ? '$plan Plan — Active'
-                : 'No active plan';
+        // ─── Profile fields ────────────────────────────────────────────────
+        final name = userSnap.data()?['name'] as String? ??
+            user.displayName ??
+            user.email?.split('@').first ??
+            'User';
+        final email = userSnap.data()?['email'] as String? ?? user.email ?? '';
+        final phone = userSnap.data()?['phone'] as String? ?? '';
+
+        // ─── Plan ─────────────────────────────────────────────────────────
+        String plan = 'No active plan';
+        if (clientSnap.exists) {
+          final planName =
+              clientSnap.data()?['subscriptionPlan'] as String? ?? '';
+          final status =
+              clientSnap.data()?['subscriptionStatus'] as String? ?? '';
+          if (planName.isNotEmpty && status == 'active') {
+            plan = '$planName Plan — Active';
           }
+        }
+
+        // ─── Days active ──────────────────────────────────────────────────
+        int daysActive = 0;
+        final createdAt =
+            userSnap.data()?['createdAt'] as Timestamp?;
+        if (createdAt != null) {
+          daysActive =
+              DateTime.now().difference(createdAt.toDate()).inDays;
+        }
+
+        // ─── Weight lost (startingWeightKg − currentWeightKg) ─────────────
+        double weightLost = 0.0;
+        if (clientSnap.exists) {
+          final startKg =
+              (clientSnap.data()?['startingWeightKg'] as num?)?.toDouble();
+          final curKg =
+              (clientSnap.data()?['weightKg'] as num?)?.toDouble();
+          if (startKg != null && curKg != null && startKg > curKg) {
+            weightLost = startKg - curKg;
+          }
+        }
+
+        // ─── Total check-ins ──────────────────────────────────────────────
+        final totalCheckIns = checkInsSnap.docs.length;
+
+        setState(() {
+          _userName = name;
+          _userEmail = email;
+          _userPhone = phone;
+          _currentPlan = plan;
+          _daysActive = daysActive;
+          _weightLost = weightLost;
+          _totalCheckIns = totalCheckIns;
           _isLoading = false;
         });
       }
     } catch (e) {
+      debugPrint('_loadUserData error: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -104,6 +158,9 @@ class _SettingsProfileState extends State<SettingsProfile> {
                 currentPlan: _currentPlan,
                 avatarUrl: '',
                 onAvatarTap: _showAvatarOptions,
+                daysActive: _daysActive,
+                weightLost: _weightLost,
+                totalCheckIns: _totalCheckIns,
               ),
             ),
 
@@ -239,7 +296,7 @@ class _SettingsProfileState extends State<SettingsProfile> {
                 ),
                 SettingsItemData(
                   title: 'Storage & Cache',
-                  subtitle: 'Manage app storage (245 MB used)',
+                  subtitle: 'Clear cached images and data',
                   iconName: 'storage',
                   iconColor: Colors.brown,
                   iconBackgroundColor: Colors.brown,
@@ -444,6 +501,8 @@ class _SettingsProfileState extends State<SettingsProfile> {
   }
 
   void _editPersonalInfo() {
+    final nameCtrl = TextEditingController(text: _userName);
+    final phoneCtrl = TextEditingController(text: _userPhone);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -452,7 +511,7 @@ class _SettingsProfileState extends State<SettingsProfile> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextFormField(
-              initialValue: _userName,
+              controller: nameCtrl,
               decoration: const InputDecoration(
                 labelText: 'Full Name',
                 prefixIcon: Icon(Icons.person),
@@ -461,14 +520,16 @@ class _SettingsProfileState extends State<SettingsProfile> {
             SizedBox(height: 2.h),
             TextFormField(
               initialValue: _userEmail,
+              readOnly: true,
               decoration: const InputDecoration(
-                labelText: 'Email',
+                labelText: 'Email (cannot be changed)',
                 prefixIcon: Icon(Icons.email),
               ),
             ),
             SizedBox(height: 2.h),
             TextFormField(
-              initialValue: _userPhone,
+              controller: phoneCtrl,
+              keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
                 labelText: 'Phone',
                 prefixIcon: Icon(Icons.phone),
@@ -482,11 +543,31 @@ class _SettingsProfileState extends State<SettingsProfile> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              final newName = nameCtrl.text.trim();
+              final newPhone = phoneCtrl.text.trim();
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Profile updated successfully')),
-              );
+              try {
+                final uid = FirebaseService.instance.currentUser?.uid;
+                if (uid != null) {
+                  await FirebaseService.instance.users.doc(uid).update({
+                    if (newName.isNotEmpty) 'name': newName,
+                    if (newPhone.isNotEmpty) 'phone': newPhone,
+                  });
+                  await _loadUserData(); // refresh UI
+                }
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Profile updated!')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Update failed: $e')),
+                  );
+                }
+              }
             },
             child: const Text('Save'),
           ),
@@ -496,6 +577,8 @@ class _SettingsProfileState extends State<SettingsProfile> {
   }
 
   void _changePassword() {
+    final newPassCtrl = TextEditingController();
+    final confirmPassCtrl = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -504,22 +587,16 @@ class _SettingsProfileState extends State<SettingsProfile> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextFormField(
+              controller: newPassCtrl,
               obscureText: true,
               decoration: const InputDecoration(
-                labelText: 'Current Password',
-                prefixIcon: Icon(Icons.lock),
-              ),
-            ),
-            SizedBox(height: 2.h),
-            TextFormField(
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'New Password',
+                labelText: 'New Password (min 6 chars)',
                 prefixIcon: Icon(Icons.lock_outline),
               ),
             ),
             SizedBox(height: 2.h),
             TextFormField(
+              controller: confirmPassCtrl,
               obscureText: true,
               decoration: const InputDecoration(
                 labelText: 'Confirm New Password',
@@ -534,11 +611,37 @@ class _SettingsProfileState extends State<SettingsProfile> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              final newPw = newPassCtrl.text;
+              final confirmPw = confirmPassCtrl.text;
+              if (newPw.length < 6) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Password must be at least 6 characters')),
+                );
+                return;
+              }
+              if (newPw != confirmPw) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Passwords do not match')),
+                );
+                return;
+              }
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Password changed successfully')),
-              );
+              try {
+                await FirebaseService.instance.currentUser
+                    ?.updatePassword(newPw);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Password changed successfully')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed: $e. Please re-login and try again.')),
+                  );
+                }
+              }
             },
             child: const Text('Change'),
           ),
@@ -895,11 +998,69 @@ class _SettingsProfileState extends State<SettingsProfile> {
   }
 
   void _showHelp() {
-    Navigator.pushNamed(context, '/help-faq');
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('Help & FAQ', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            _faqItem('How do I update my diet plan?', 'Contact your dietician or use the Weekly Check-in to share your progress. Your plan will be updated by the admin.'),
+            _faqItem('How do I track my progress?', 'Tap the Progress tab at the bottom. You can log weight and view your history after submitting Weekly Check-ins.'),
+            _faqItem('How do I make a payment?', 'Go to Settings → Subscription Plans to view and purchase a plan using Razorpay.'),
+            _faqItem('My name shows incorrectly — how to fix?', 'Go to Settings → Personal Information and update your name, then tap Save.'),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
   }
 
-  void _contactSupport() {
-    Navigator.pushNamed(context, '/support-chat');
+  Widget _faqItem(String question, String answer) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: Text(question, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(answer, style: TextStyle(color: Colors.grey[700], fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _contactSupport() async {
+    const whatsapp = 'https://wa.me/918871448064?text=Hi%2C%20I%20need%20help%20with%20the%20Dietician%20Babu%20app';
+    final uri = Uri.parse(whatsapp);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open WhatsApp. Please contact +91 88714 48064')),
+        );
+      }
+    }
   }
 
   void _sendFeedback() {
@@ -1078,8 +1239,8 @@ class _SettingsProfileState extends State<SettingsProfile> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Version: 1.2.3'),
-            const Text('Build: 2024.09.06'),
+            const Text('Version: 1.3.0'),
+            const Text('Build: 2026.03.08'),
             SizedBox(height: 2.h),
             const Text('Your personalized diet coaching companion'),
             SizedBox(height: 2.h),

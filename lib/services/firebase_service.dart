@@ -134,19 +134,37 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get messages =>
       db.collection('messages');
 
-  /// Create or merge user doc after login
+  /// Create or merge user doc after login.
+  /// Always runs — safe to call on every login because it only writes missing fields.
   Future<void> upsertUser(User user, {bool onboardingComplete = false}) async {
     final ref = db.collection('users').doc(user.uid);
     final snap = await ref.get();
     if (!snap.exists) {
+      // New user — create full doc
       await ref.set({
         'uid': user.uid,
+        'name': user.displayName ?? user.email?.split('@').first ?? '',
         'email': user.email ?? '',
         'phone': user.phoneNumber ?? '',
         'role': user.email == _adminEmail ? 'admin' : 'client',
         'onboardingComplete': onboardingComplete,
         'createdAt': FieldValue.serverTimestamp(),
       });
+    } else {
+      // Existing user — patch only fields that are empty/missing
+      final data = snap.data()!;
+      final updates = <String, dynamic>{};
+      if ((data['name'] as String?)?.isEmpty ?? true) {
+        final fallback = user.displayName ?? user.email?.split('@').first ?? '';
+        if (fallback.isNotEmpty) updates['name'] = fallback;
+      }
+      if ((data['email'] as String?)?.isEmpty ?? true) {
+        if ((user.email ?? '').isNotEmpty) updates['email'] = user.email;
+      }
+      if ((data['phone'] as String?)?.isEmpty ?? true) {
+        if ((user.phoneNumber ?? '').isNotEmpty) updates['phone'] = user.phoneNumber;
+      }
+      if (updates.isNotEmpty) await ref.update(updates);
     }
   }
 

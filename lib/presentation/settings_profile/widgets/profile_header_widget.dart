@@ -10,6 +10,11 @@ class ProfileHeaderWidget extends StatelessWidget {
   final String avatarUrl;
   final VoidCallback onAvatarTap;
 
+  // Real computed stats (passed from SettingsProfile after Firebase load)
+  final int daysActive;       // days since account creation
+  final double weightLost;    // kg lost since onboarding
+  final int totalCheckIns;    // number of weekly check-ins submitted
+
   const ProfileHeaderWidget({
     Key? key,
     required this.userName,
@@ -17,6 +22,9 @@ class ProfileHeaderWidget extends StatelessWidget {
     required this.currentPlan,
     required this.avatarUrl,
     required this.onAvatarTap,
+    this.daysActive = 0,
+    this.weightLost = 0.0,
+    this.totalCheckIns = 0,
   }) : super(key: key);
 
   @override
@@ -116,7 +124,7 @@ class ProfileHeaderWidget extends StatelessWidget {
                 child: _buildStatItem(
                   context,
                   'Days Active',
-                  '45',
+                  '$daysActive',
                   CustomIconWidget(
                     iconName: 'calendar_today',
                     color: AppTheme.lightTheme.primaryColor,
@@ -133,10 +141,12 @@ class ProfileHeaderWidget extends StatelessWidget {
                 child: _buildStatItem(
                   context,
                   'Weight Lost',
-                  '3.2 kg',
+                  weightLost > 0 ? '${weightLost.toStringAsFixed(1)} kg' : '\u2014',
                   CustomIconWidget(
                     iconName: 'trending_down',
-                    color: AppTheme.lightTheme.colorScheme.tertiary,
+                    color: weightLost > 0
+                        ? AppTheme.lightTheme.colorScheme.tertiary
+                        : AppTheme.lightTheme.colorScheme.onSurfaceVariant,
                     size: 16,
                   ),
                 ),
@@ -149,10 +159,10 @@ class ProfileHeaderWidget extends StatelessWidget {
               Expanded(
                 child: _buildStatItem(
                   context,
-                  'Streak',
-                  '12 days',
+                  'Check-ins',
+                  '$totalCheckIns',
                   CustomIconWidget(
-                    iconName: 'local_fire_department',
+                    iconName: 'assignment_turned_in',
                     color: Colors.orange,
                     size: 16,
                   ),

@@ -1,7 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../services/firebase_service.dart';
 import './widgets/achievement_badge_widget.dart';
 import './widgets/measurement_card_widget.dart';
 import './widgets/photo_comparison_widget.dart';
@@ -23,15 +25,11 @@ class _ProgressTrackingState extends State<ProgressTracking>
   String _selectedPeriod = '1M';
   int _currentBottomNavIndex = 1; // Progress tab active
 
-  // Mock data for progress tracking
-  final List<Map<String, dynamic>> _weightData = [
-    {'label': 'Jan', 'value': 75.5},
-    {'label': 'Feb', 'value': 74.2},
-    {'label': 'Mar', 'value': 73.8},
-    {'label': 'Apr', 'value': 72.5},
-    {'label': 'May', 'value': 71.9},
-    {'label': 'Jun', 'value': 71.2},
-  ];
+  // Weight data loaded from Firestore weeklyUpdates
+  List<Map<String, dynamic>> _weightData = [];
+  double _currentWeight = 0.0;
+  double _weightChange = 0.0;
+  bool _loadingWeight = true;
 
   final List<Map<String, dynamic>> _nutritionData = [
     {'label': 'Protein', 'value': 30, 'percentage': 30},
@@ -102,6 +100,76 @@ class _ProgressTrackingState extends State<ProgressTracking>
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _loadWeightData();
+  }
+
+  Future<void> _loadWeightData() async {
+    final uid = FirebaseService.instance.currentUser?.uid;
+    if (uid == null) {
+      setState(() => _loadingWeight = false);
+      return;
+    }
+    try {
+      final snap = await FirebaseService.instance.weeklyUpdates
+          .where('clientId', isEqualTo: uid)
+          .orderBy('submittedAt')
+          .get();
+
+      if (snap.docs.isEmpty) {
+        // Also try client doc for current weight
+        final clientSnap =
+            await FirebaseService.instance.clients.doc(uid).get();
+        final curW =
+            (clientSnap.data()?['weightKg'] as num?)?.toDouble() ?? 0.0;
+        if (mounted) {
+          setState(() {
+            _currentWeight = curW;
+            _weightChange = 0.0;
+            _weightData = [];
+            _loadingWeight = false;
+          });
+        }
+        return;
+      }
+
+      // Build chart data — use month+year as label for older entries,
+      // or "Wk N" for recent entries (last 8)
+      final docs = snap.docs;
+      final chartDocs = docs.length > 8 ? docs.sublist(docs.length - 8) : docs;
+
+      final chartData = chartDocs.map((doc) {
+        final ts = doc.data()['submittedAt'] as Timestamp?;
+        final w = (doc.data()['weightKg'] as num?)?.toDouble() ?? 0.0;
+        String label;
+        if (ts != null) {
+          final d = ts.toDate();
+          const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          label = '${months[d.month]} ${d.day}';
+        } else {
+          label = '—';
+        }
+        return {'label': label, 'value': w};
+      }).toList();
+
+      final firstWeight =
+          (docs.first.data()['weightKg'] as num?)?.toDouble() ?? 0.0;
+      final lastWeight =
+          (docs.last.data()['weightKg'] as num?)?.toDouble() ?? 0.0;
+      final change = firstWeight > 0 ? lastWeight - firstWeight : 0.0;
+
+      if (mounted) {
+        setState(() {
+          _weightData = chartData;
+          _currentWeight = lastWeight;
+          _weightChange = change;
+          _loadingWeight = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('_loadWeightData error: $e');
+      if (mounted) setState(() => _loadingWeight = false);
+    }
   }
 
   @override
@@ -184,40 +252,87 @@ class _ProgressTrackingState extends State<ProgressTracking>
   }
 
   Widget _buildWeightView() {
+    if (_loadingWeight) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final hasData = _weightData.isNotEmpty;
+    final trendText = _weightChange == 0
+        ? 'No change'
+        : '${_weightChange > 0 ? '+' : ''}${_weightChange.toStringAsFixed(1)} kg';
+    final isLoss = _weightChange < 0;
+
     return SingleChildScrollView(
       padding: EdgeInsets.all(4.w),
       child: Column(
         children: [
           StatsCardWidget(
             title: 'Current Weight',
-            value: '71.2',
+            value: _currentWeight > 0
+                ? _currentWeight.toStringAsFixed(1)
+                : '—',
             unit: 'kg',
-            trend: '-4.3 kg',
-            isPositiveTrend: true,
+            trend: hasData ? trendText : 'No check-ins yet',
+            isPositiveTrend: isLoss, // losing weight is positive
           ),
           SizedBox(height: 2.h),
-          TimePeriodSelectorWidget(
-            periods: ['1W', '1M', '3M', '1Y'],
-            selectedPeriod: _selectedPeriod,
-            onPeriodSelected: (period) {
-              setState(() {
-                _selectedPeriod = period;
-              });
-            },
-          ),
-          SizedBox(height: 2.h),
-          ProgressChartWidget(
-            chartData: _weightData,
-            chartType: 'line',
-            yAxisLabel: 'Weight Progress',
-            primaryColor: AppTheme.primaryLight,
-          ),
+          if (!hasData)
+            Container(
+              padding: EdgeInsets.all(6.w),
+              decoration: BoxDecoration(
+                color: AppTheme.lightTheme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.bar_chart_rounded,
+                      size: 48,
+                      color: AppTheme.lightTheme.colorScheme.onSurfaceVariant),
+                  SizedBox(height: 2.h),
+                  Text(
+                    'No check-ins yet',
+                    style: AppTheme.lightTheme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  SizedBox(height: 1.h),
+                  Text(
+                    'Submit a Weekly Check-in to start tracking your weight progress.',
+                    textAlign: TextAlign.center,
+                    style: AppTheme.lightTheme.textTheme.bodySmall?.copyWith(
+                      color: AppTheme.lightTheme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  SizedBox(height: 2.h),
+                  ElevatedButton(
+                    onPressed: () =>
+                        Navigator.pushNamed(context, '/weekly-checkin'),
+                    child: const Text('Submit Check-in'),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            TimePeriodSelectorWidget(
+              periods: ['1W', '1M', '3M', '1Y'],
+              selectedPeriod: _selectedPeriod,
+              onPeriodSelected: (period) {
+                setState(() {
+                  _selectedPeriod = period;
+                });
+              },
+            ),
+            SizedBox(height: 2.h),
+            ProgressChartWidget(
+              chartData: _weightData,
+              chartType: 'line',
+              yAxisLabel: 'Weight Progress (kg)',
+              primaryColor: AppTheme.primaryLight,
+            ),
+          ],
           SizedBox(height: 2.h),
           PhotoComparisonWidget(
-            beforeImageUrl:
-                'https://images.pexels.com/photos/6975474/pexels-photo-6975474.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-            afterImageUrl:
-                'https://images.pexels.com/photos/6975475/pexels-photo-6975475.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+            beforeImageUrl: '',
+            afterImageUrl: '',
             onAddPhoto: _addProgressPhoto,
           ),
           SizedBox(height: 2.h),
