@@ -255,7 +255,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
 
     try {
       final model = GenerativeModel(
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.0-flash',
         apiKey: AppSecrets.geminiApiKey,
       );
       final response = await model.generateContent([Content.text(prompt)]);

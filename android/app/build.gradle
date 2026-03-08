@@ -55,8 +55,10 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            minifyEnabled false
-            shrinkResources false
+            // Code shrinking + resource stripping — cuts APK size by ~50%
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             // Use release keystore if key.properties exists, else fall back to debug
             signingConfig keystorePropertiesFile.exists()
                 ? signingConfigs.release
