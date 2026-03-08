@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sizer/sizer.dart';
@@ -136,7 +137,23 @@ class _SplashScreenState extends State<SplashScreen>
       final profile = await fs.getUserProfile(user.uid);
       if (!mounted) return;
 
-      final onboardingDone = profile?['onboardingComplete'] == true;
+      // Auto-create users doc if missing (e.g. user signed up before rules were fixed)
+      if (profile == null) {
+        await fs.users.doc(user.uid).set({
+          'uid': user.uid,
+          'name': user.displayName ?? user.email?.split('@').first ?? 'User',
+          'email': user.email ?? '',
+          'phone': user.phoneNumber ?? '',
+          'role': 'client',
+          'onboardingComplete': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, AppRoutes.healthProfileOnboarding);
+        return;
+      }
+
+      final onboardingDone = profile['onboardingComplete'] == true;
       if (!onboardingDone) {
         Navigator.pushReplacementNamed(context, AppRoutes.healthProfileOnboarding);
       } else {

@@ -18,20 +18,12 @@ class SettingsProfile extends StatefulWidget {
 }
 
 class _SettingsProfileState extends State<SettingsProfile> {
-  // Mock user data
-  final Map<String, dynamic> userData = {
-    "id": 1,
-    "name": "Priya Sharma",
-    "email": "priya.sharma@email.com",
-    "phone": "+91 98765 43210",
-    "avatar":
-        "https://images.unsplash.com/photo-1494790108755-2616b612b786?fm=jpg&q=60&w=400&ixlib=rb-4.0.3",
-    "currentPlan": "Premium Plan",
-    "joinDate": "2024-01-15",
-    "daysActive": 45,
-    "weightLost": 3.2,
-    "currentStreak": 12,
-  };
+  // Real user data from Firebase
+  String _userName = '';
+  String _userEmail = '';
+  String _userPhone = '';
+  String _currentPlan = 'No active plan';
+  bool _isLoading = true;
 
   // Settings state
   String selectedTheme = 'System';
@@ -48,7 +40,51 @@ class _SettingsProfileState extends State<SettingsProfile> {
   };
 
   @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final user = FirebaseService.instance.currentUser;
+    if (user == null) return;
+    try {
+      final userSnap = await FirebaseService.instance.users.doc(user.uid).get();
+      final clientSnap =
+          await FirebaseService.instance.clients.doc(user.uid).get();
+      if (mounted) {
+        setState(() {
+          _userName = userSnap.data()?['name'] as String? ??
+              user.displayName ??
+              user.email?.split('@').first ??
+              'User';
+          _userEmail =
+              userSnap.data()?['email'] as String? ?? user.email ?? '';
+          _userPhone = userSnap.data()?['phone'] as String? ?? '';
+          if (clientSnap.exists) {
+            final plan =
+                clientSnap.data()?['subscriptionPlan'] as String? ?? '';
+            final status =
+                clientSnap.data()?['subscriptionStatus'] as String? ?? '';
+            _currentPlan = (plan.isNotEmpty && status == 'active')
+                ? '$plan Plan — Active'
+                : 'No active plan';
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       backgroundColor: AppTheme.lightTheme.scaffoldBackgroundColor,
       appBar: _buildAppBar(),
@@ -63,10 +99,10 @@ class _SettingsProfileState extends State<SettingsProfile> {
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 4.w),
               child: ProfileHeaderWidget(
-                userName: userData["name"] as String,
-                userEmail: userData["email"] as String,
-                currentPlan: userData["currentPlan"] as String,
-                avatarUrl: userData["avatar"] as String,
+                userName: _userName,
+                userEmail: _userEmail,
+                currentPlan: _currentPlan,
+                avatarUrl: '',
                 onAvatarTap: _showAvatarOptions,
               ),
             ),
@@ -94,7 +130,7 @@ class _SettingsProfileState extends State<SettingsProfile> {
                 ),
                 SettingsItemData(
                   title: 'Subscription Management',
-                  subtitle: userData["currentPlan"] as String,
+                  subtitle: _currentPlan,
                   iconName: 'card_membership',
                   iconColor: Colors.purple,
                   iconBackgroundColor: Colors.purple,
@@ -416,7 +452,7 @@ class _SettingsProfileState extends State<SettingsProfile> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextFormField(
-              initialValue: userData["name"] as String,
+              initialValue: _userName,
               decoration: const InputDecoration(
                 labelText: 'Full Name',
                 prefixIcon: Icon(Icons.person),
@@ -424,7 +460,7 @@ class _SettingsProfileState extends State<SettingsProfile> {
             ),
             SizedBox(height: 2.h),
             TextFormField(
-              initialValue: userData["email"] as String,
+              initialValue: _userEmail,
               decoration: const InputDecoration(
                 labelText: 'Email',
                 prefixIcon: Icon(Icons.email),
@@ -432,7 +468,7 @@ class _SettingsProfileState extends State<SettingsProfile> {
             ),
             SizedBox(height: 2.h),
             TextFormField(
-              initialValue: userData["phone"] as String,
+              initialValue: _userPhone,
               decoration: const InputDecoration(
                 labelText: 'Phone',
                 prefixIcon: Icon(Icons.phone),
@@ -939,7 +975,7 @@ class _SettingsProfileState extends State<SettingsProfile> {
               if (context.mounted) {
                 Navigator.pushNamedAndRemoveUntil(
                   context,
-                  '/login-screen',
+                  '/landing',
                   (route) => false,
                 );
               }
