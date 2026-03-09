@@ -1,16 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
 import '../../services/firebase_service.dart';
-import './widgets/language_selector_widget.dart';
 import './widgets/notification_settings_widget.dart';
 import './widgets/profile_header_widget.dart';
 import './widgets/settings_section_widget.dart';
-import './widgets/theme_selector_widget.dart';
 
 class SettingsProfile extends StatefulWidget {
   const SettingsProfile({Key? key}) : super(key: key);
@@ -33,9 +30,6 @@ class _SettingsProfileState extends State<SettingsProfile> {
   int _totalCheckIns = 0;
 
   // Settings state
-  String selectedTheme = 'System';
-  String selectedLanguage = 'en';
-  bool biometricEnabled = true;
   bool offlineSyncEnabled = true;
 
   Map<String, bool> notificationSettings = {
@@ -210,22 +204,6 @@ class _SettingsProfileState extends State<SettingsProfile> {
                   iconBackgroundColor: Colors.blue,
                   onTap: _showNotificationSettings,
                 ),
-                SettingsItemData(
-                  title: 'Language',
-                  subtitle: selectedLanguage == 'en' ? 'English' : 'हिन्दी',
-                  iconName: 'language',
-                  iconColor: Colors.green,
-                  iconBackgroundColor: Colors.green,
-                  onTap: _showLanguageSelector,
-                ),
-                SettingsItemData(
-                  title: 'Theme',
-                  subtitle: selectedTheme,
-                  iconName: 'palette',
-                  iconColor: Colors.indigo,
-                  iconBackgroundColor: Colors.indigo,
-                  onTap: _showThemeSelector,
-                ),
               ],
             ),
 
@@ -268,18 +246,6 @@ class _SettingsProfileState extends State<SettingsProfile> {
             SettingsSectionWidget(
               title: 'App Settings',
               items: [
-                SettingsItemData(
-                  title: 'Biometric Authentication',
-                  subtitle: biometricEnabled ? 'Enabled' : 'Disabled',
-                  iconName: 'fingerprint',
-                  iconColor: Colors.deepPurple,
-                  iconBackgroundColor: Colors.deepPurple,
-                  trailing: Switch(
-                    value: biometricEnabled,
-                    onChanged: _toggleBiometric,
-                    activeColor: AppTheme.lightTheme.primaryColor,
-                  ),
-                ),
                 SettingsItemData(
                   title: 'Offline Sync',
                   subtitle: offlineSyncEnabled
@@ -705,92 +671,6 @@ class _SettingsProfileState extends State<SettingsProfile> {
     );
   }
 
-  void _showLanguageSelector() {
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(4.w)),
-      ),
-      builder: (context) => Container(
-        padding: EdgeInsets.all(4.w),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 12.w,
-              height: 0.5.h,
-              decoration: BoxDecoration(
-                color: AppTheme.lightTheme.dividerColor,
-                borderRadius: BorderRadius.circular(1.w),
-              ),
-            ),
-            SizedBox(height: 2.h),
-            Text(
-              'Select Language',
-              style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            SizedBox(height: 2.h),
-            LanguageSelectorWidget(
-              currentLanguage: selectedLanguage,
-              onLanguageChanged: (language) {
-                setState(() {
-                  selectedLanguage = language;
-                });
-                Navigator.pop(context);
-              },
-            ),
-            SizedBox(height: 2.h),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showThemeSelector() {
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(4.w)),
-      ),
-      builder: (context) => Container(
-        padding: EdgeInsets.all(4.w),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 12.w,
-              height: 0.5.h,
-              decoration: BoxDecoration(
-                color: AppTheme.lightTheme.dividerColor,
-                borderRadius: BorderRadius.circular(1.w),
-              ),
-            ),
-            SizedBox(height: 2.h),
-            Text(
-              'Theme Selection',
-              style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            SizedBox(height: 2.h),
-            ThemeSelectorWidget(
-              currentTheme: selectedTheme,
-              onThemeChanged: (theme) {
-                setState(() {
-                  selectedTheme = theme;
-                });
-                Navigator.pop(context);
-              },
-            ),
-            SizedBox(height: 2.h),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _manageHealthIntegration() {
     showDialog(
       context: context,
@@ -907,23 +787,6 @@ class _SettingsProfileState extends State<SettingsProfile> {
         ],
       ),
     );
-  }
-
-  void _toggleBiometric(bool value) {
-    setState(() {
-      biometricEnabled = value;
-    });
-
-    if (value) {
-      // Simulate biometric setup
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Biometric authentication enabled')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Biometric authentication disabled')),
-      );
-    }
   }
 
   void _toggleOfflineSync(bool value) {
@@ -1168,62 +1031,19 @@ class _SettingsProfileState extends State<SettingsProfile> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _showBiometricVerification(() {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                        'Account deletion initiated. Check your email for confirmation.'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      'Account deletion initiated. Check your email for confirmation.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
             child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showBiometricVerification(VoidCallback onSuccess) {
-    if (!biometricEnabled) {
-      onSuccess();
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Biometric Verification'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CustomIconWidget(
-              iconName: 'fingerprint',
-              color: AppTheme.lightTheme.primaryColor,
-              size: 64,
-            ),
-            SizedBox(height: 2.h),
-            const Text('Please verify your identity to continue'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Simulate successful verification
-              HapticFeedback.lightImpact();
-              onSuccess();
-            },
-            child: const Text('Verify'),
           ),
         ],
       ),

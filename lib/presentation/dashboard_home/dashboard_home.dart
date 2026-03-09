@@ -7,7 +7,6 @@ import '../../services/firebase_service.dart';
 import './widgets/consultation_reminder_widget.dart';
 import './widgets/daily_calorie_progress_widget.dart';
 import './widgets/meal_plan_preview_widget.dart';
-import './widgets/motivational_message_widget.dart';
 import './widgets/step_counter_widget.dart';
 import './widgets/water_intake_tracker_widget.dart';
 
@@ -71,24 +70,6 @@ class _DashboardHomeState extends State<DashboardHome>
     "time": "3:00 PM",
     "type": "video",
   };
-
-  final List<Map<String, dynamic>> _motivationalMessages = [
-    {
-      "message":
-          "Great job! You're 69% towards your daily calorie goal. Keep it up!",
-      "type": "encouragement",
-    },
-    {
-      "message":
-          "Don't forget to drink more water. You're 750ml away from your goal.",
-      "type": "info",
-    },
-    {
-      "message":
-          "Amazing progress on your steps today! Only 2,766 more to reach your goal.",
-      "type": "success",
-    },
-  ];
 
   @override
   void initState() {
@@ -184,31 +165,6 @@ class _DashboardHomeState extends State<DashboardHome>
           margin: EdgeInsets.only(right: 4.w),
           child: Row(
             children: [
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 3.w, vertical: 1.h),
-                decoration: BoxDecoration(
-                  color: AppTheme.lightTheme.colorScheme.primary
-                      .withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    CustomIconWidget(
-                      iconName: 'wb_sunny',
-                      color: Colors.orange,
-                      size: 16,
-                    ),
-                    SizedBox(width: 1.w),
-                    Text(
-                      '24°C',
-                      style: AppTheme.lightTheme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(width: 2.w),
               GestureDetector(
                 onTap: () => Navigator.pushNamed(context, '/settings-profile'),
                 child: Container(
@@ -264,14 +220,6 @@ class _DashboardHomeState extends State<DashboardHome>
 
             // ── Quick Actions ────────────────────────────────────────────────
             _buildQuickActions(),
-
-            // Motivational Message
-            if (_motivationalMessages.isNotEmpty)
-              MotivationalMessageWidget(
-                message: _motivationalMessages.first['message'] as String,
-                messageType: _motivationalMessages.first['type'] as String,
-                onDismiss: () => _dismissMessage(0),
-              ),
 
             // Daily Calorie Progress
             DailyCalorieProgressWidget(
@@ -576,14 +524,6 @@ class _DashboardHomeState extends State<DashboardHome>
     }
   }
 
-  void _dismissMessage(int index) {
-    setState(() {
-      if (index < _motivationalMessages.length) {
-        _motivationalMessages.removeAt(index);
-      }
-    });
-  }
-
   void _showCalorieDetails() {
     showModalBottomSheet(
       context: context,
@@ -716,7 +656,6 @@ class _DashboardHomeState extends State<DashboardHome>
             ),
           ),
           SizedBox(height: 2.h),
-          _buildQuickLogOption('Scan Barcode', 'qr_code_scanner', () {}),
           _buildQuickLogOption('Search Food', 'search', () {}),
           _buildQuickLogOption('Take Photo', 'camera_alt', () {}),
           _buildQuickLogOption('Voice Input', 'mic', () {}),
@@ -807,16 +746,7 @@ class _DashboardHomeState extends State<DashboardHome>
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('Close'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            Navigator.of(context).pop();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Joining consultation...')),
-            );
-          },
-          child: Text('Join Call'),
+          child: const Text('Close'),
         ),
       ],
     );
