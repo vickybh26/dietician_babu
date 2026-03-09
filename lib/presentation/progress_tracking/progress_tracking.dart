@@ -110,15 +110,48 @@ class _ProgressTrackingState extends State<ProgressTracking>
       return;
     }
     try {
-      final snap = await FirebaseService.instance.weeklyUpdates
-          .where('clientId', isEqualTo: uid)
-          .orderBy('submittedAt')
-          .get();
+      // Load from both sources in parallel
+      final results = await Future.wait([
+        FirebaseService.instance.weeklyUpdates
+            .where('clientId', isEqualTo: uid)
+            .orderBy('submittedAt')
+            .get(),
+        FirebaseService.instance.clients
+            .doc(uid)
+            .collection('weightHistory')
+            .orderBy('recordedAt')
+            .get(),
+        FirebaseService.instance.clients.doc(uid).get(),
+      ]);
 
-      if (snap.docs.isEmpty) {
-        // Also try client doc for current weight
-        final clientSnap =
-            await FirebaseService.instance.clients.doc(uid).get();
+      final weeklySnap = results[0] as QuerySnapshot<Map<String, dynamic>>;
+      final historySnap = results[1] as QuerySnapshot<Map<String, dynamic>>;
+      final clientSnap = results[2] as DocumentSnapshot<Map<String, dynamic>>;
+
+      // Build a unified list of {date: DateTime, weight: double}
+      final entries = <Map<String, dynamic>>[];
+
+      for (final doc in weeklySnap.docs) {
+        final ts = doc.data()['submittedAt'] as Timestamp?;
+        final w = (doc.data()['weightKg'] as num?)?.toDouble() ?? 0.0;
+        if (ts != null && w > 0) {
+          entries.add({'date': ts.toDate(), 'weight': w});
+        }
+      }
+      for (final doc in historySnap.docs) {
+        final ts = doc.data()['recordedAt'] as Timestamp?;
+        final w = (doc.data()['weightKg'] as num?)?.toDouble() ?? 0.0;
+        if (ts != null && w > 0) {
+          entries.add({'date': ts.toDate(), 'weight': w});
+        }
+      }
+
+      // Sort combined list by date ascending
+      entries.sort((a, b) =>
+          (a['date'] as DateTime).compareTo(b['date'] as DateTime));
+
+      // Fallback: use client doc weight if no history yet
+      if (entries.isEmpty) {
         final curW =
             (clientSnap.data()?['weightKg'] as num?)?.toDouble() ?? 0.0;
         if (mounted) {
@@ -132,30 +165,21 @@ class _ProgressTrackingState extends State<ProgressTracking>
         return;
       }
 
-      // Build chart data — use month+year as label for older entries,
-      // or "Wk N" for recent entries (last 8)
-      final docs = snap.docs;
-      final chartDocs = docs.length > 8 ? docs.sublist(docs.length - 8) : docs;
-
-      final chartData = chartDocs.map((doc) {
-        final ts = doc.data()['submittedAt'] as Timestamp?;
-        final w = (doc.data()['weightKg'] as num?)?.toDouble() ?? 0.0;
-        String label;
-        if (ts != null) {
-          final d = ts.toDate();
-          const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-          label = '${months[d.month]} ${d.day}';
-        } else {
-          label = '—';
-        }
-        return {'label': label, 'value': w};
+      // Take last 8 points for chart
+      const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final chartEntries =
+          entries.length > 8 ? entries.sublist(entries.length - 8) : entries;
+      final chartData = chartEntries.map((e) {
+        final d = e['date'] as DateTime;
+        return {
+          'label': '${months[d.month]} ${d.day}',
+          'value': e['weight'] as double,
+        };
       }).toList();
 
-      final firstWeight =
-          (docs.first.data()['weightKg'] as num?)?.toDouble() ?? 0.0;
-      final lastWeight =
-          (docs.last.data()['weightKg'] as num?)?.toDouble() ?? 0.0;
+      final firstWeight = (entries.first['weight'] as double);
+      final lastWeight = (entries.last['weight'] as double);
       final change = firstWeight > 0 ? lastWeight - firstWeight : 0.0;
 
       if (mounted) {

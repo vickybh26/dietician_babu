@@ -1,6 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
-
 
 import '../../core/app_export.dart';
 import '../../services/firebase_service.dart';
@@ -64,12 +64,7 @@ class _DashboardHomeState extends State<DashboardHome>
     },
   ];
 
-  final Map<String, dynamic>? _upcomingConsultation = {
-    "doctorName": "Anjali Mehta",
-    "date": "Tomorrow",
-    "time": "3:00 PM",
-    "type": "video",
-  };
+  Map<String, dynamic>? _upcomingConsultation;
 
   @override
   void initState() {
@@ -87,6 +82,49 @@ class _DashboardHomeState extends State<DashboardHome>
           await FirebaseService.instance.users.doc(uid).get();
 
       if (mounted) {
+        // ── Daily stats (water) ──────────────────────────────────────────────
+        final todayKey = DateTime.now().toIso8601String().substring(0, 10);
+        int savedWaterMl = 0;
+        int targetCal = 1800;
+        int targetWater = 2500;
+        Map<String, dynamic>? consultation;
+
+        if (clientSnap.exists) {
+          final data = clientSnap.data()!;
+
+          // Today's water from nested dailyStats map
+          final dailyStats = data['dailyStats'] as Map<String, dynamic>?;
+          final todayStats = dailyStats?[todayKey] as Map<String, dynamic>?;
+          savedWaterMl = (todayStats?['waterMl'] as num?)?.toInt() ?? 0;
+
+          // Optional custom targets set by admin
+          targetCal = (data['targetCalories'] as num?)?.toInt() ?? 1800;
+          targetWater = (data['targetWaterMl'] as num?)?.toInt() ?? 2500;
+
+          // Consultation data written by admin
+          final nc = data['nextConsultation'] as Map<String, dynamic>?;
+          if (nc != null && (nc['doctorName'] as String? ?? '').isNotEmpty) {
+            String dateDisplay = nc['date'] as String? ?? '';
+            try {
+              final dt = DateTime.parse(dateDisplay);
+              final today = DateTime.now();
+              final diff = DateTime(dt.year, dt.month, dt.day)
+                  .difference(DateTime(today.year, today.month, today.day))
+                  .inDays;
+              if (diff == 0) dateDisplay = 'Today';
+              else if (diff == 1) dateDisplay = 'Tomorrow';
+              else if (diff > 1) dateDisplay = '${dt.day}/${dt.month}/${dt.year}';
+              else dateDisplay = 'Past';
+            } catch (_) {}
+            consultation = {
+              'doctorName': nc['doctorName'],
+              'date': dateDisplay,
+              'time': nc['time'] ?? '',
+              'type': nc['type'] ?? 'video',
+            };
+          }
+        }
+
         setState(() {
           // Get name from user record
           final phone = userSnap.data()?['phone'] as String? ?? '';
@@ -100,8 +138,13 @@ class _DashboardHomeState extends State<DashboardHome>
                 clientSnap.data()?['subscriptionPlan'] as String? ?? 'none';
             _subscriptionStatus =
                 clientSnap.data()?['subscriptionStatus'] as String? ?? 'none';
-            // weight loaded (reserved for future chart use)
           }
+
+          // Hydration, targets, consultation
+          _userData['currentWater'] = savedWaterMl;
+          _userData['targetCalories'] = targetCal;
+          _userData['targetWater'] = targetWater;
+          _upcomingConsultation = consultation;
         });
       }
     } catch (e) {
@@ -534,18 +577,99 @@ class _DashboardHomeState extends State<DashboardHome>
   }
 
   void _addWater(int amount) {
-    setState(() {
-      final currentWater = _userData['currentWater'] as int;
-      final targetWater = _userData['targetWater'] as int;
-      _userData['currentWater'] =
-          (currentWater + amount).clamp(0, targetWater + 1000);
-    });
+    final newTotal = ((_userData['currentWater'] as int) + amount)
+        .clamp(0, (_userData['targetWater'] as int) + 1000) as int;
+    setState(() => _userData['currentWater'] = newTotal);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Added ${amount}ml water!'),
+        content: Text('Added ${amount}ml water! Total: ${newTotal}ml'),
         duration: const Duration(seconds: 2),
         backgroundColor: Colors.blue,
+      ),
+    );
+
+    // Persist today's water total to Firestore (fire-and-forget)
+    final uid = FirebaseService.instance.currentUser?.uid;
+    if (uid != null) {
+      final todayKey = DateTime.now().toIso8601String().substring(0, 10);
+      FirebaseService.instance.clients.doc(uid).set({
+        'dailyStats': {todayKey: {'waterMl': newTotal}},
+      }, SetOptions(merge: true)).catchError((e) {
+        debugPrint('Failed to persist water intake: $e');
+      });
+    }
+  }
+
+  void _logWeight() {
+    // Close quick-log sheet if open, then show dialog
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log Weight'),
+        content: TextFormField(
+          controller: ctrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Weight (kg)',
+            hintText: 'e.g. 72.5',
+            prefixIcon: Icon(Icons.monitor_weight_outlined),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final kg = double.tryParse(ctrl.text.trim());
+              if (kg == null || kg <= 0 || kg > 300) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Please enter a valid weight')),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              final uid = FirebaseService.instance.currentUser?.uid;
+              if (uid == null) return;
+              try {
+                // Update current weight on client doc
+                await FirebaseService.instance.clients.doc(uid).set(
+                  {'weightKg': kg},
+                  SetOptions(merge: true),
+                );
+                // Append entry to weightHistory subcollection
+                await FirebaseService.instance.clients
+                    .doc(uid)
+                    .collection('weightHistory')
+                    .add({
+                  'weightKg': kg,
+                  'recordedAt': FieldValue.serverTimestamp(),
+                });
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                          'Weight logged: ${kg.toStringAsFixed(1)} kg ✓'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to save weight: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
       ),
     );
   }
@@ -560,6 +684,7 @@ class _DashboardHomeState extends State<DashboardHome>
   }
 
   void _viewConsultationDetails() {
+    if (_upcomingConsultation == null) return;
     showDialog(
       context: context,
       builder: (context) => _buildConsultationDialog(),
@@ -708,7 +833,7 @@ class _DashboardHomeState extends State<DashboardHome>
             children: [
               Expanded(
                   child: _buildQuickLogOption(
-                      'Log Weight', 'monitor_weight', () {})),
+                      'Log Weight', 'monitor_weight', _logWeight)),
               SizedBox(width: 2.w),
               Expanded(
                   child: _buildQuickLogOption(
