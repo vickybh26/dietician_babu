@@ -66,6 +66,11 @@ Map<String, List<ClientTag>> get kClientTagsByCategory {
   return map;
 }
 
+/// Returns the Color for a given tag name. Falls back to grey if unknown.
+Color tagColor(String tagName) {
+  return kClientTagMap[tagName]?.color ?? const Color(0xFF9E9E9E);
+}
+
 /// Auto-suggest tags from onboarding answers.
 /// The client can still freely add/remove any tag.
 List<String> deriveTags({

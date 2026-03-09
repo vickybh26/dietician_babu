@@ -1129,9 +1129,9 @@ class _DashboardHomeState extends State<DashboardHome>
           _buildConsultationDetailRow(
               'Doctor', 'Dr. ${_upcomingConsultation!['doctorName']}'),
           _buildConsultationDetailRow(
-              'Date', _upcomingConsultation['date'] as String),
+              'Date', _upcomingConsultation!['date'] as String),
           _buildConsultationDetailRow(
-              'Time', _upcomingConsultation['time'] as String),
+              'Time', _upcomingConsultation!['time'] as String),
           _buildConsultationDetailRow('Type', 'Video Call'),
         ],
       ),

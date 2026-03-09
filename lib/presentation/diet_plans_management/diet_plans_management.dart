@@ -6,8 +6,7 @@ import 'package:intl/intl.dart';
 import '../../services/firebase_service.dart';
 import '../../routes/app_routes.dart';
 import '../admin_dashboard_overview/widgets/admin_scaffold.dart';
-import '../admin_diet_plan_creator/admin_diet_plan_creator.dart'
-    show tagColor;
+import '../../core/client_tags.dart' show tagColor;
 
 class DietPlansManagement extends StatefulWidget {
   const DietPlansManagement({super.key});
