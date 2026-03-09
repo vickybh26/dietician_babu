@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sizer/sizer.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../services/firebase_service.dart';
 
@@ -46,15 +45,15 @@ class _SignupScreenState extends State<SignupScreen> {
         _passCtrl.text,
       );
 
-      // Save basic profile to Firestore
-      await FirebaseService.instance.users.doc(cred.user!.uid).set({
-        'uid': cred.user!.uid,
-        'name': _nameCtrl.text.trim(),
-        'email': _emailCtrl.text.trim(),
+      // Set display name so upsertUser picks it up correctly
+      await cred.user!.updateDisplayName(_nameCtrl.text.trim());
+
+      // Sync to Firestore via the canonical upsertUser helper.
+      // Also write phone (not covered by upsertUser) and mark onboarding pending.
+      await FirebaseService.instance.upsertUser(cred.user!);
+      await FirebaseService.instance.users.doc(cred.user!.uid).update({
         'phone': _phoneCtrl.text.trim(),
-        'role': 'client',
         'onboardingComplete': false,
-        'createdAt': FieldValue.serverTimestamp(),
       });
 
       if (mounted) {
