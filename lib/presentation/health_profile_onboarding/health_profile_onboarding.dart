@@ -4,9 +4,11 @@ import 'package:sizer/sizer.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/app_export.dart';
+import '../../core/client_tags.dart';
 import '../../services/firebase_service.dart';
 import './widgets/activity_level_widget.dart';
 import './widgets/basic_info_widget.dart';
+import './widgets/client_tags_widget.dart';
 import './widgets/food_preferences_widget.dart';
 import './widgets/goal_selection_widget.dart';
 import './widgets/medical_conditions_widget.dart';
@@ -24,7 +26,7 @@ class HealthProfileOnboarding extends StatefulWidget {
 class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
   final PageController _pageController = PageController();
   int _currentStep = 0;
-  final int _totalSteps = 6;
+  final int _totalSteps = 7; // added tags step
 
   // Profile data
   String _selectedGoal = '';
@@ -36,6 +38,7 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
   List<String> _selectedMedicalConditions = [];
   List<String> _selectedCuisines = [];
   List<String> _selectedDietaryRestrictions = [];
+  List<String> _selectedTags = []; // NEW: client-facing health tags
 
   final List<String> _stepTitles = [
     'What\'s your primary goal?',
@@ -43,6 +46,7 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
     'Tell us about yourself',
     'Any medical conditions?',
     'Food preferences',
+    'Your health tags',
     'Review your profile',
   ];
 
@@ -64,6 +68,7 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
                 onPageChanged: (index) {
                   setState(() {
                     _currentStep = index;
+                    if (index == 5) _autoDeriveTags();
                   });
                 },
                 children: [
@@ -72,6 +77,7 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
                   _buildStepContent(_buildBasicInfoStep()),
                   _buildStepContent(_buildMedicalConditionsStep()),
                   _buildStepContent(_buildFoodPreferencesStep()),
+                  _buildStepContent(_buildTagsStep()),
                   _buildStepContent(_buildSummaryStep()),
                 ],
               ),
@@ -81,6 +87,16 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
         ),
       ),
     );
+  }
+
+  void _autoDeriveTags() {
+    final derived = deriveTags(
+      goal: _selectedGoal,
+      dietaryRestrictions: _selectedDietaryRestrictions,
+      medicalConditions: _selectedMedicalConditions,
+    );
+    final merged = <String>{..._selectedTags, ...derived};
+    setState(() => _selectedTags = merged.toList());
   }
 
   Widget _buildStepContent(Widget content) {
@@ -94,9 +110,7 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
     return GoalSelectionWidget(
       selectedGoal: _selectedGoal,
       onGoalSelected: (goal) {
-        setState(() {
-          _selectedGoal = goal;
-        });
+        setState(() => _selectedGoal = goal);
         HapticFeedback.lightImpact();
       },
     );
@@ -106,9 +120,7 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
     return ActivityLevelWidget(
       activityLevel: _activityLevel,
       onActivityLevelChanged: (level) {
-        setState(() {
-          _activityLevel = level;
-        });
+        setState(() => _activityLevel = level);
         HapticFeedback.lightImpact();
       },
     );
@@ -120,25 +132,11 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
       height: _height,
       weight: _weight,
       gender: _gender,
-      onAgeChanged: (age) {
-        setState(() {
-          _age = age;
-        });
-      },
-      onHeightChanged: (height) {
-        setState(() {
-          _height = height;
-        });
-      },
-      onWeightChanged: (weight) {
-        setState(() {
-          _weight = weight;
-        });
-      },
+      onAgeChanged: (age) => setState(() => _age = age),
+      onHeightChanged: (height) => setState(() => _height = height),
+      onWeightChanged: (weight) => setState(() => _weight = weight),
       onGenderChanged: (gender) {
-        setState(() {
-          _gender = gender;
-        });
+        setState(() => _gender = gender);
         HapticFeedback.lightImpact();
       },
     );
@@ -148,9 +146,7 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
     return MedicalConditionsWidget(
       selectedConditions: _selectedMedicalConditions,
       onConditionsChanged: (conditions) {
-        setState(() {
-          _selectedMedicalConditions = conditions;
-        });
+        setState(() => _selectedMedicalConditions = conditions);
         HapticFeedback.lightImpact();
       },
     );
@@ -161,15 +157,21 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
       selectedCuisines: _selectedCuisines,
       selectedDietaryRestrictions: _selectedDietaryRestrictions,
       onCuisinesChanged: (cuisines) {
-        setState(() {
-          _selectedCuisines = cuisines;
-        });
+        setState(() => _selectedCuisines = cuisines);
         HapticFeedback.lightImpact();
       },
       onDietaryRestrictionsChanged: (restrictions) {
-        setState(() {
-          _selectedDietaryRestrictions = restrictions;
-        });
+        setState(() => _selectedDietaryRestrictions = restrictions);
+        HapticFeedback.lightImpact();
+      },
+    );
+  }
+
+  Widget _buildTagsStep() {
+    return ClientTagsWidget(
+      selectedTags: _selectedTags,
+      onTagsChanged: (tags) {
+        setState(() => _selectedTags = tags);
         HapticFeedback.lightImpact();
       },
     );
@@ -186,6 +188,7 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
       'medicalConditions': _selectedMedicalConditions,
       'cuisines': _selectedCuisines,
       'dietaryRestrictions': _selectedDietaryRestrictions,
+      'tags': _selectedTags,
     };
 
     return SummaryWidget(
@@ -193,21 +196,12 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
       onEditSection: (section) {
         int targetStep = 0;
         switch (section) {
-          case 'goal':
-            targetStep = 0;
-            break;
-          case 'activity':
-            targetStep = 1;
-            break;
-          case 'basic_info':
-            targetStep = 2;
-            break;
-          case 'medical':
-            targetStep = 3;
-            break;
-          case 'food':
-            targetStep = 4;
-            break;
+          case 'goal':       targetStep = 0; break;
+          case 'activity':   targetStep = 1; break;
+          case 'basic_info': targetStep = 2; break;
+          case 'medical':    targetStep = 3; break;
+          case 'food':       targetStep = 4; break;
+          case 'tags':       targetStep = 5; break;
         }
         _goToStep(targetStep);
       },
@@ -264,7 +258,7 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
                           size: 4.w,
                         ),
                         SizedBox(width: 2.w),
-                        Text('Back'),
+                        const Text('Back'),
                       ],
                     ),
                   ),
@@ -291,8 +285,8 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
                     children: [
                       Text(
                         isLastStep ? 'Complete Profile' : 'Continue',
-                        style:
-                            AppTheme.lightTheme.textTheme.labelLarge?.copyWith(
+                        style: AppTheme.lightTheme.textTheme.labelLarge
+                            ?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: canContinue
                               ? AppTheme.lightTheme.colorScheme.onPrimary
@@ -324,39 +318,23 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
 
   bool _canContinueFromCurrentStep() {
     switch (_currentStep) {
-      case 0: // Goal selection
-        return _selectedGoal.isNotEmpty;
-      case 1: // Activity level
-        return true; // Always can continue with default value
-      case 2: // Basic info
-        return _gender.isNotEmpty && _age > 0 && _height > 0 && _weight > 0;
-      case 3: // Medical conditions
-        return true; // Optional step
-      case 4: // Food preferences
-        return true; // Optional step
-      case 5: // Summary
-        return true; // Always can complete
-      default:
-        return false;
+      case 0: return _selectedGoal.isNotEmpty;
+      case 1: return true;
+      case 2: return _gender.isNotEmpty && _age > 0 && _height > 0 && _weight > 0;
+      case 3: return true;
+      case 4: return true;
+      case 5: return true;
+      case 6: return true;
+      default: return false;
     }
   }
 
   bool _canSkipCurrentStep() {
     switch (_currentStep) {
-      case 0: // Goal selection - Required
-        return false;
-      case 1: // Activity level - Required
-        return false;
-      case 2: // Basic info - Required
-        return false;
-      case 3: // Medical conditions - Optional
-        return true;
-      case 4: // Food preferences - Optional
-        return true;
-      case 5: // Summary - Required
-        return false;
-      default:
-        return false;
+      case 3: return true;
+      case 4: return true;
+      case 5: return true;
+      default: return false;
     }
   }
 
@@ -394,7 +372,6 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
   Future<void> _completeOnboarding() async {
     HapticFeedback.heavyImpact();
 
-    // Show saving dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -447,29 +424,27 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
     try {
       final uid = FirebaseService.instance.currentUser?.uid;
       if (uid != null) {
-        // Check if startingWeightKg already set (never overwrite on re-onboarding)
-        final existing = await FirebaseService.instance.clients.doc(uid).get();
+        final existing =
+            await FirebaseService.instance.clients.doc(uid).get();
         final alreadyHasStartingWeight =
             existing.exists && existing.data()?['startingWeightKg'] != null;
 
-        // Save health profile to Firestore
         await FirebaseService.instance.clients.doc(uid).set({
           'goal': _selectedGoal,
           'activityLevel': _activityLevel,
           'age': _age,
           'heightCm': _height,
           'weightKg': _weight,
-          // Set ONCE on first onboarding — used to compute weight lost
           if (!alreadyHasStartingWeight) 'startingWeightKg': _weight,
           'gender': _gender,
           'medicalConditions': _selectedMedicalConditions,
           'cuisines': _selectedCuisines,
           'dietaryRestrictions': _selectedDietaryRestrictions,
+          'tags': _selectedTags,
           'subscriptionStatus': 'none',
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-        // Mark onboarding complete in users collection
         await FirebaseService.instance.upsertUser(
           FirebaseService.instance.currentUser!,
           onboardingComplete: true,
@@ -483,8 +458,7 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
     }
 
     if (mounted) {
-      Navigator.of(context).pop(); // Close dialog
-      // Go to subscription plans so new users can subscribe
+      Navigator.of(context).pop();
       Navigator.pushReplacementNamed(context, '/subscription-plans');
     }
   }

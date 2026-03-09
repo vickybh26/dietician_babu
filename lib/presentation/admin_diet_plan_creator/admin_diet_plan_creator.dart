@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:sizer/sizer.dart';
 
+import '../../core/client_tags.dart';     // ← shared tag definitions
 import '../../services/firebase_service.dart';
 import '../../config/secrets.dart';
 import '../../theme/app_theme.dart';
@@ -57,36 +58,6 @@ class DayPlan {
       };
 }
 
-// ─── Available tags ────────────────────────────────────────────────────────────
-
-const _kAllTags = [
-  'Veg',
-  'Non-Veg',
-  'Egg',
-  'High Protein',
-  'Diabetes',
-  'Gluten Free',
-  'Low Carb',
-  'Weight Loss',
-  'Weight Gain',
-  'Heart Healthy',
-];
-
-const _kTagColors = <String, Color>{
-  'Veg': Color(0xFF4CAF50),
-  'Non-Veg': Color(0xFFE53935),
-  'Egg': Color(0xFFFFA726),
-  'High Protein': Color(0xFF1565C0),
-  'Diabetes': Color(0xFF7B1FA2),
-  'Gluten Free': Color(0xFF00838F),
-  'Low Carb': Color(0xFF558B2F),
-  'Weight Loss': Color(0xFFD84315),
-  'Weight Gain': Color(0xFF37474F),
-  'Heart Healthy': Color(0xFFC62828),
-};
-
-Color tagColor(String tag) => _kTagColors[tag] ?? Colors.grey.shade600;
-
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 class AdminDietPlanCreator extends StatefulWidget {
@@ -97,25 +68,21 @@ class AdminDietPlanCreator extends StatefulWidget {
 }
 
 class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
-  // Step: 0=setup, 1=generating/editing, 2=done
   int _step = 0;
 
-  // Step 0 — plan setup
   final _titleController = TextEditingController();
   final _notesController = TextEditingController();
   final Set<String> _selectedTags = {};
 
-  // Client selection (optional)
   String? _selectedClientId;
   Map<String, dynamic>? _selectedClientProfile;
   List<Map<String, dynamic>> _clients = [];
   bool _loadingClients = true;
-  bool _showClientList = false; // collapsible panel
+  bool _showClientList = false;
 
-  // Step 1 — plan content
+  List<DayPlan> _weekPlan = [];
   String _planTitle = '';
   String _planNotes = '';
-  List<DayPlan> _weekPlan = [];
   bool _generating = false;
   bool _saving = false;
 
@@ -141,8 +108,14 @@ class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
         final entry = <String, dynamic>{};
         entry['uid'] = doc.id;
         entry['profile'] = clientDocData;
+        // tags are stored directly on the client profile
+        entry['tags'] = (clientDocData['tags'] as List?)
+                ?.map((t) => t.toString())
+                .toList() ??
+            <String>[];
 
-        final userSnap = await FirebaseService.instance.users.doc(doc.id).get();
+        final userSnap =
+            await FirebaseService.instance.users.doc(doc.id).get();
         if (userSnap.exists) {
           final ud = userSnap.data()!;
           entry['email'] = ud['email'] ?? '';
@@ -155,9 +128,37 @@ class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
         }
         list.add(entry);
       }
-      if (mounted) setState(() { _clients = list; _loadingClients = false; });
+      if (mounted) {
+        setState(() {
+          _clients = list;
+          _loadingClients = false;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _loadingClients = false);
+    }
+  }
+
+  // ─── Select client: auto-populate tags from their profile ─────────────────
+
+  void _selectClient(String uid, Map<String, dynamic>? profile) {
+    setState(() {
+      _selectedClientId = uid;
+      _selectedClientProfile = profile;
+      _showClientList = false;
+    });
+
+    // Load client's saved tags and pre-select them
+    final clientEntry = _clients.firstWhere(
+      (c) => c['uid'] == uid,
+      orElse: () => {},
+    );
+    final clientTags = (clientEntry['tags'] as List<String>?) ?? [];
+    if (clientTags.isNotEmpty) {
+      setState(() {
+        _selectedTags.clear();
+        _selectedTags.addAll(clientTags);
+      });
     }
   }
 
@@ -182,7 +183,10 @@ class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
           (profile['medicalConditions'] as List?)?.join(', ') ?? 'none';
       final dietaryRestrictions =
           (profile['dietaryRestrictions'] as List?)?.join(', ') ?? 'none';
-      final cuisines = (profile['cuisines'] as List?)?.join(', ') ?? 'Indian';
+      final cuisines =
+          (profile['cuisines'] as List?)?.join(', ') ?? 'Indian';
+      // ← Include client's own tags in the AI prompt
+      final clientTags = (profile['tags'] as List?)?.join(', ') ?? '';
 
       promptSuffix = '''
 CLIENT PROFILE:
@@ -194,17 +198,34 @@ CLIENT PROFILE:
 - Activity level: $activity (1=sedentary, 2=lightly active, 3=moderately active, 4=very active)
 - Medical conditions: $medicalConditions
 - Dietary restrictions: $dietaryRestrictions
-- Preferred cuisines: $cuisines''';
+- Preferred cuisines: $cuisines
+- Health tags: ${clientTags.isNotEmpty ? clientTags : 'general'}''';
     } else {
-      // General plan based on tags
       final dietType = tags.contains('Non-Veg')
           ? 'Non-Vegetarian Indian'
           : tags.contains('Egg')
               ? 'Eggetarian Indian'
-              : 'Vegetarian Indian';
+              : tags.contains('Vegan')
+                  ? 'Vegan Indian'
+                  : 'Vegetarian Indian';
       final goals = tags
-          .where((t) => ['Weight Loss', 'Weight Gain', 'High Protein',
-              'Diabetes', 'Gluten Free', 'Low Carb', 'Heart Healthy'].contains(t))
+          .where((t) => [
+                'Weight Loss',
+                'Weight Gain',
+                'High Protein',
+                'Diabetes',
+                'Gluten Free',
+                'Low Carb',
+                'Heart Healthy',
+                'High BP',
+                'Thyroid',
+                'PCOD/PCOS',
+                'Cholesterol',
+                'Keto',
+                'Dairy Free',
+                'High Fibre',
+                'Maintenance',
+              ].contains(t))
           .join(', ');
 
       promptSuffix = '''
@@ -231,10 +252,17 @@ INSTRUCTIONS:
 3. Each meal must have 2-4 food items.
 4. Each food item must include: name, quantity (e.g. "1 cup", "2 rotis"), approximate calories.
 5. Focus on Indian foods — dal, sabzi, roti, rice, curd, fruits, nuts, etc.
-6. Strictly follow the dietary restrictions implied by the tags (e.g. if Veg, no meat/fish/eggs).
-7. If Diabetes tag: avoid sugar, white rice, refined flour. Use whole grains, millets, low-GI foods.
-8. If Gluten Free: avoid wheat/maida/roti, use rice, millets, sorghum instead.
-9. Keep it practical and easy to follow for a home cook in India.
+6. Strictly follow the dietary restrictions implied by the tags:
+   - Veg: no meat/fish/eggs
+   - Vegan: no animal products including dairy/eggs
+   - Non-Veg: can include chicken, fish, eggs
+   - Gluten Free: no wheat/maida/roti — use rice, millets, sorghum instead
+   - Dairy Free: no milk, curd, paneer, ghee
+   - Keto / Low Carb: minimal rice/roti, high fat, moderate protein
+7. If Diabetes or High BP tag: avoid sugar, white rice, refined flour, excess salt
+8. If Heart Healthy or Cholesterol tag: low saturated fat, high fibre, omega-3 rich
+9. If PCOD/PCOS or Thyroid tag: anti-inflammatory foods, low GI, avoid processed sugar
+10. Keep it practical and easy for a home cook in India.
 
 Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
 {
@@ -336,7 +364,6 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
         'format': 'structured',
       });
 
-      // If assigned to client, update their current plan reference
       if (_selectedClientId != null) {
         await FirebaseService.instance.clients.doc(_selectedClientId).set({
           'currentPlanId': docRef.id,
@@ -345,7 +372,10 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
       }
 
       if (mounted) {
-        setState(() { _saving = false; _step = 2; });
+        setState(() {
+          _saving = false;
+          _step = 2;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -374,7 +404,8 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
           if (_step == 1)
             TextButton.icon(
               onPressed: _generating ? null : _generateWithGemini,
-              icon: const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
+              icon: const Icon(Icons.auto_awesome,
+                  color: Colors.white, size: 18),
               label: const Text('Regenerate',
                   style: TextStyle(color: Colors.white, fontSize: 13)),
             ),
@@ -406,14 +437,18 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
           Expanded(
             child: Container(
               height: 2,
-              color: _step >= 1 ? Colors.white : Colors.white.withOpacity(0.3),
+              color: _step >= 1
+                  ? Colors.white
+                  : Colors.white.withValues(alpha: 0.3),
             ),
           ),
           _stepDot(2, 'Edit Plan', _step >= 1),
           Expanded(
             child: Container(
               height: 2,
-              color: _step >= 2 ? Colors.white : Colors.white.withOpacity(0.3),
+              color: _step >= 2
+                  ? Colors.white
+                  : Colors.white.withValues(alpha: 0.3),
             ),
           ),
           _stepDot(3, 'Done', _step >= 2),
@@ -430,30 +465,46 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
             height: 28,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: active ? Colors.white : Colors.white.withOpacity(0.3),
+              color:
+                  active ? Colors.white : Colors.white.withValues(alpha: 0.3),
             ),
             child: Center(
-              child: Text('$n',
-                  style: TextStyle(
-                      color: active
-                          ? AppTheme.lightTheme.colorScheme.primary
-                          : Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13)),
+              child: Text(
+                '$n',
+                style: TextStyle(
+                  color: active
+                      ? AppTheme.lightTheme.colorScheme.primary
+                      : Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 4),
-          Text(label,
-              style: TextStyle(
-                  color: active ? Colors.white : Colors.white.withOpacity(0.5),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: TextStyle(
+              color:
+                  active ? Colors.white : Colors.white.withValues(alpha: 0.5),
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       );
 
   // ─── Step 0: Plan setup ────────────────────────────────────────────────────
 
   Widget _buildPlanSetup() {
+    final byCategory = kClientTagsByCategory;
+    final categoryOrder = [
+      kTagCatDiet,
+      kTagCatGoal,
+      kTagCatMedical,
+      kTagCatSpecial,
+    ];
+
     return SingleChildScrollView(
       padding: EdgeInsets.all(4.w),
       child: Column(
@@ -463,58 +514,16 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
           _sectionHeader('Plan Title'),
           TextField(
             controller: _titleController,
-            decoration: _inputDec('e.g. 7-Day Weight Loss Plan for Beginners'),
+            decoration:
+                _inputDec('e.g. 7-Day Weight Loss Plan for Beginners'),
             onChanged: (v) => _planTitle = v,
-          ),
-          SizedBox(height: 3.h),
-
-          // Tags
-          _sectionHeader('Tags'),
-          const Text(
-            'Select all that apply. These help filter and categorise plans.',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-          SizedBox(height: 1.h),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _kAllTags.map((tag) {
-              final selected = _selectedTags.contains(tag);
-              final color = tagColor(tag);
-              return FilterChip(
-                label: Text(tag),
-                selected: selected,
-                onSelected: (val) {
-                  setState(() {
-                    if (val) {
-                      _selectedTags.add(tag);
-                    } else {
-                      _selectedTags.remove(tag);
-                    }
-                  });
-                },
-                selectedColor: color.withOpacity(0.15),
-                checkmarkColor: color,
-                labelStyle: TextStyle(
-                  color: selected ? color : Colors.grey.shade700,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
-                  fontSize: 13,
-                ),
-                side: BorderSide(
-                  color: selected ? color : Colors.grey.shade300,
-                  width: selected ? 1.5 : 1,
-                ),
-                backgroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20)),
-              );
-            }).toList(),
           ),
           SizedBox(height: 3.h),
 
           // Optional: assign to client
           GestureDetector(
-            onTap: () => setState(() => _showClientList = !_showClientList),
+            onTap: () =>
+                setState(() => _showClientList = !_showClientList),
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -552,8 +561,8 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                         ),
                         Text(
                           _selectedClientId != null
-                              ? _getClientDisplayName(_selectedClientId!)
-                              : 'If selected, AI will personalise for their profile',
+                              ? '${_getClientDisplayName(_selectedClientId!)} — tags auto-loaded ✓'
+                              : 'Tags will auto-populate from client profile',
                           style: TextStyle(
                               fontSize: 12, color: Colors.grey.shade500),
                           maxLines: 1,
@@ -569,6 +578,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                       onPressed: () => setState(() {
                         _selectedClientId = null;
                         _selectedClientProfile = null;
+                        _selectedTags.clear();
                       }),
                     )
                   else
@@ -588,7 +598,76 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
             _buildClientListPanel(),
           ],
 
-          SizedBox(height: 4.h),
+          SizedBox(height: 3.h),
+
+          // Tags — grouped by category
+          _sectionHeader('Plan Tags'),
+          Text(
+            _selectedClientId != null
+                ? 'Pre-filled from client\'s health profile. Adjust as needed.'
+                : 'Select tags. They guide Gemini and help filter plans.',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          SizedBox(height: 1.5.h),
+
+          ...categoryOrder.map((cat) {
+            final tags = byCategory[cat] ?? [];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  cat,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                SizedBox(height: 0.8.h),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: tags.map((tag) {
+                    final selected = _selectedTags.contains(tag.name);
+                    return FilterChip(
+                      label: Text('${tag.emoji} ${tag.name}'),
+                      selected: selected,
+                      onSelected: (val) => setState(() {
+                        if (val) {
+                          _selectedTags.add(tag.name);
+                        } else {
+                          _selectedTags.remove(tag.name);
+                        }
+                      }),
+                      selectedColor: tag.color.withValues(alpha: 0.15),
+                      checkmarkColor: tag.color,
+                      labelStyle: TextStyle(
+                        color:
+                            selected ? tag.color : Colors.grey.shade700,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.normal,
+                        fontSize: 12,
+                      ),
+                      side: BorderSide(
+                        color: selected
+                            ? tag.color
+                            : Colors.grey.shade300,
+                        width: selected ? 1.5 : 1,
+                      ),
+                      backgroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                    );
+                  }).toList(),
+                ),
+                SizedBox(height: 2.h),
+              ],
+            );
+          }),
+
+          SizedBox(height: 2.h),
         ],
       ),
     );
@@ -632,7 +711,9 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
           final displayName = (client['displayName'] as String?) ?? '';
           final email = (client['email'] as String?) ?? '';
           final phone = (client['phone'] as String?) ?? '';
-          final profile = client['profile'] as Map<String, dynamic>?;
+          final profile =
+              client['profile'] as Map<String, dynamic>?;
+          final clientTags = (client['tags'] as List<String>?) ?? [];
           final label = displayName.isNotEmpty
               ? displayName
               : email.isNotEmpty
@@ -644,8 +725,8 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
 
           return ListTile(
             leading: CircleAvatar(
-              backgroundColor:
-                  AppTheme.lightTheme.colorScheme.primary.withOpacity(0.1),
+              backgroundColor: AppTheme.lightTheme.colorScheme.primary
+                  .withValues(alpha: 0.1),
               child: Text(
                 label.isNotEmpty ? label[0].toUpperCase() : '?',
                 style: TextStyle(
@@ -656,14 +737,44 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
             title: Text(label,
                 style: const TextStyle(
                     fontWeight: FontWeight.w600, fontSize: 14)),
-            subtitle: Text(sub,
-                style:
-                    TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-            onTap: () => setState(() {
-              _selectedClientId = uid;
-              _selectedClientProfile = profile;
-              _showClientList = false;
-            }),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(sub,
+                    style: TextStyle(
+                        fontSize: 11, color: Colors.grey.shade500)),
+                if (clientTags.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 4,
+                    children: clientTags.take(4).map((t) {
+                      final tagDef = kClientTagMap[t];
+                      final color =
+                          tagDef?.color ?? Colors.grey.shade400;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: color.withValues(alpha: 0.3)),
+                        ),
+                        child: Text(
+                          '${tagDef?.emoji ?? ''} $t',
+                          style: TextStyle(
+                              fontSize: 9,
+                              color: color,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ],
+            ),
+            isThreeLine: clientTags.isNotEmpty,
+            onTap: () => _selectClient(uid, profile),
           );
         },
       ),
@@ -692,9 +803,10 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
             SizedBox(height: 1.h),
             Text(
               _selectedClientProfile != null
-                  ? 'Personalising for client profile'
+                  ? 'Personalising for client profile and tags'
                   : 'Crafting a plan based on selected tags',
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+              style:
+                  TextStyle(color: Colors.grey.shade500, fontSize: 13),
             ),
           ],
         ),
@@ -708,26 +820,29 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
         children: [
           _sectionHeader('Plan Details'),
 
-          // Tags display
           if (_selectedTags.isNotEmpty) ...[
             Wrap(
               spacing: 6,
               runSpacing: 6,
-              children: _selectedTags.map((tag) {
-                final color = tagColor(tag);
+              children: _selectedTags.map((tagName) {
+                final tagDef = kClientTagMap[tagName];
+                final color = tagDef?.color ?? Colors.grey.shade600;
                 return Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: color.withOpacity(0.3)),
+                    border:
+                        Border.all(color: color.withValues(alpha: 0.3)),
                   ),
-                  child: Text(tag,
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: color,
-                          fontWeight: FontWeight.w600)),
+                  child: Text(
+                    '${tagDef?.emoji ?? ''} $tagName',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: color,
+                        fontWeight: FontWeight.w600),
+                  ),
                 );
               }).toList(),
             ),
@@ -764,11 +879,13 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
 
   Widget _sectionHeader(String title) => Padding(
         padding: EdgeInsets.only(bottom: 1.h),
-        child: Text(title,
-            style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 16,
-                color: Color(0xFF1a1a1a))),
+        child: Text(
+          title,
+          style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+              color: Color(0xFF1a1a1a)),
+        ),
       );
 
   InputDecoration _inputDec(String hint) => InputDecoration(
@@ -784,7 +901,8 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(
-                color: AppTheme.lightTheme.colorScheme.primary, width: 2)),
+                color: AppTheme.lightTheme.colorScheme.primary,
+                width: 2)),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       );
@@ -801,20 +919,23 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                 width: 90,
                 height: 90,
                 decoration: BoxDecoration(
-                    color: Colors.green.shade50, shape: BoxShape.circle),
+                    color: Colors.green.shade50,
+                    shape: BoxShape.circle),
                 child: Icon(Icons.check_circle_rounded,
                     color: Colors.green.shade500, size: 52),
               ),
               SizedBox(height: 3.h),
               const Text('Plan Saved! 🎉',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  style: TextStyle(
+                      fontSize: 22, fontWeight: FontWeight.bold)),
               SizedBox(height: 1.h),
               Text(
                 _selectedClientId != null
                     ? 'The diet plan has been saved and assigned to the client. They can view it in the My Diet Plan section.'
                     : 'The diet plan has been saved to your library. You can assign it to a client anytime.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                style:
+                    TextStyle(color: Colors.grey.shade600, fontSize: 14),
               ),
               SizedBox(height: 4.h),
               ElevatedButton.icon(
@@ -833,10 +954,11 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                 icon: const Icon(Icons.add_rounded),
                 label: const Text('Create Another Plan'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.lightTheme.colorScheme.primary,
+                  backgroundColor:
+                      AppTheme.lightTheme.colorScheme.primary,
                   foregroundColor: Colors.white,
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 6.w, vertical: 1.5.h),
+                  padding: EdgeInsets.symmetric(
+                      horizontal: 6.w, vertical: 1.5.h),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
@@ -846,7 +968,8 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                 onPressed: () => Navigator.pop(context),
                 child: Text('Back to Diet Plans',
                     style: TextStyle(
-                        color: AppTheme.lightTheme.colorScheme.primary)),
+                        color:
+                            AppTheme.lightTheme.colorScheme.primary)),
               ),
             ],
           ),
@@ -862,7 +985,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.07),
+              color: Colors.black.withValues(alpha: 0.07),
               blurRadius: 12,
               offset: const Offset(0, -4))
         ],
@@ -985,7 +1108,7 @@ class _DayCardState extends State<_DayCard> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2))
         ],
@@ -995,11 +1118,13 @@ class _DayCardState extends State<_DayCard> {
           GestureDetector(
             onTap: () => setState(() => _expanded = !_expanded),
             child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.5.h),
+              padding:
+                  EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.5.h),
               decoration: BoxDecoration(
                 color: const Color(0xFF61b239),
                 borderRadius: _expanded
-                    ? const BorderRadius.vertical(top: Radius.circular(16))
+                    ? const BorderRadius.vertical(
+                        top: Radius.circular(16))
                     : BorderRadius.circular(16),
               ),
               child: Row(
@@ -1033,7 +1158,8 @@ class _DayCardState extends State<_DayCard> {
                     .map((entry) => _MealSection(
                           mealName: entry.key,
                           items: entry.value,
-                          color: _mealColors[entry.key] ?? Colors.grey,
+                          color:
+                              _mealColors[entry.key] ?? Colors.grey,
                           onChanged: widget.onChanged,
                         ))
                     .toList(),
@@ -1044,8 +1170,6 @@ class _DayCardState extends State<_DayCard> {
     );
   }
 }
-
-// ─── Meal section ─────────────────────────────────────────────────────────────
 
 class _MealSection extends StatelessWidget {
   final String mealName;
@@ -1070,7 +1194,8 @@ class _MealSection extends StatelessWidget {
               Container(
                 width: 10,
                 height: 10,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                decoration:
+                    BoxDecoration(color: color, shape: BoxShape.circle),
               ),
               SizedBox(width: 2.w),
               Text(mealName,
@@ -1096,11 +1221,11 @@ class _MealSection extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(Icons.add_circle_outline_rounded,
-                      size: 16, color: color.withOpacity(0.6)),
+                      size: 16, color: color.withValues(alpha: 0.6)),
                   SizedBox(width: 1.w),
                   Text('Add item',
                       style: TextStyle(
-                          color: color.withOpacity(0.6),
+                          color: color.withValues(alpha: 0.6),
                           fontSize: 12,
                           fontWeight: FontWeight.w500)),
                 ],
@@ -1112,8 +1237,6 @@ class _MealSection extends StatelessWidget {
     );
   }
 }
-
-// ─── Editable item row ────────────────────────────────────────────────────────
 
 class _EditableItem extends StatelessWidget {
   final MealEntry item;
@@ -1130,9 +1253,9 @@ class _EditableItem extends StatelessWidget {
       margin: EdgeInsets.only(bottom: 0.8.h),
       padding: EdgeInsets.symmetric(horizontal: 3.w, vertical: 1.h),
       decoration: BoxDecoration(
-        color: accentColor.withOpacity(0.05),
+        color: accentColor.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: accentColor.withOpacity(0.15)),
+        border: Border.all(color: accentColor.withValues(alpha: 0.15)),
       ),
       child: Row(
         children: [
@@ -1141,7 +1264,10 @@ class _EditableItem extends StatelessWidget {
             child: _inlineField(
               value: item.name,
               hint: 'Food item',
-              onChanged: (v) { item.name = v; onChanged(); },
+              onChanged: (v) {
+                item.name = v;
+                onChanged();
+              },
             ),
           ),
           SizedBox(width: 2.w),
@@ -1150,7 +1276,10 @@ class _EditableItem extends StatelessWidget {
             child: _inlineField(
               value: item.quantity,
               hint: 'Qty',
-              onChanged: (v) { item.quantity = v; onChanged(); },
+              onChanged: (v) {
+                item.quantity = v;
+                onChanged();
+              },
             ),
           ),
           SizedBox(width: 2.w),
@@ -1159,7 +1288,10 @@ class _EditableItem extends StatelessWidget {
             child: _inlineField(
               value: item.calories,
               hint: 'kcal',
-              onChanged: (v) { item.calories = v; onChanged(); },
+              onChanged: (v) {
+                item.calories = v;
+                onChanged();
+              },
             ),
           ),
         ],
