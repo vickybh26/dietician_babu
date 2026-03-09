@@ -1,5 +1,10 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:pedometer/pedometer.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
@@ -37,39 +42,26 @@ class _DashboardHomeState extends State<DashboardHome>
     "distanceKm": 0.0,
   };
 
-  final List<Map<String, dynamic>> _todayMeals = [
-    {
-      "id": 1,
-      "name": "Oats with Berries",
-      "type": "breakfast",
-      "calories": 320,
-      "time": "8:00 AM",
-      "isLogged": true,
-    },
-    {
-      "id": 2,
-      "name": "Grilled Chicken Salad",
-      "type": "lunch",
-      "calories": 450,
-      "time": "1:00 PM",
-      "isLogged": true,
-    },
-    {
-      "id": 3,
-      "name": "Quinoa Bowl with Vegetables",
-      "type": "dinner",
-      "calories": 520,
-      "time": "7:30 PM",
-      "isLogged": false,
-    },
-  ];
+  List<Map<String, dynamic>> _todayMeals = [];
 
   Map<String, dynamic>? _upcomingConsultation;
+
+  // Pedometer
+  int _stepBaseline = -1;
+  bool _stepPermissionDenied = false;
+  StreamSubscription<StepCount>? _stepCountSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _initPedometer();
+  }
+
+  @override
+  void dispose() {
+    _stepCountSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadUserData() async {
@@ -85,6 +77,8 @@ class _DashboardHomeState extends State<DashboardHome>
         // ── Daily stats (water) ──────────────────────────────────────────────
         final todayKey = DateTime.now().toIso8601String().substring(0, 10);
         int savedWaterMl = 0;
+        int savedStepCount = 0;
+        int savedConsumedCal = 0;
         int targetCal = 1800;
         int targetWater = 2500;
         Map<String, dynamic>? consultation;
@@ -92,10 +86,13 @@ class _DashboardHomeState extends State<DashboardHome>
         if (clientSnap.exists) {
           final data = clientSnap.data()!;
 
-          // Today's water from nested dailyStats map
+          // Today's stats from nested dailyStats map
           final dailyStats = data['dailyStats'] as Map<String, dynamic>?;
           final todayStats = dailyStats?[todayKey] as Map<String, dynamic>?;
           savedWaterMl = (todayStats?['waterMl'] as num?)?.toInt() ?? 0;
+          savedStepCount = (todayStats?['stepCount'] as num?)?.toInt() ?? 0;
+          savedConsumedCal =
+              (todayStats?['consumedCalories'] as num?)?.toInt() ?? 0;
 
           // Optional custom targets set by admin
           targetCal = (data['targetCalories'] as num?)?.toInt() ?? 1800;
@@ -140,15 +137,131 @@ class _DashboardHomeState extends State<DashboardHome>
                 clientSnap.data()?['subscriptionStatus'] as String? ?? 'none';
           }
 
-          // Hydration, targets, consultation
+          // Hydration, targets, steps, calories, consultation
           _userData['currentWater'] = savedWaterMl;
+          _userData['currentSteps'] = savedStepCount;
+          _userData['consumedCalories'] = savedConsumedCal;
           _userData['targetCalories'] = targetCal;
           _userData['targetWater'] = targetWater;
           _upcomingConsultation = consultation;
         });
+        _loadTodayMealsFromPlan();
       }
     } catch (e) {
       debugPrint('Error loading user data: $e');
+    }
+  }
+
+  // ── Pedometer ─────────────────────────────────────────────────────────────
+  Future<void> _initPedometer() async {
+    try {
+      if (Platform.isAndroid) {
+        final status = await Permission.activityRecognition.request();
+        if (!status.isGranted) {
+          if (mounted) setState(() => _stepPermissionDenied = true);
+          return;
+        }
+      }
+      _stepCountSubscription = Pedometer.stepCountStream.listen(
+        (StepCount event) async {
+          final uid = FirebaseService.instance.currentUser?.uid;
+          if (uid == null) return;
+          final todayKey = DateTime.now().toIso8601String().substring(0, 10);
+
+          // Initialise baseline once per day
+          if (_stepBaseline < 0) {
+            final snap =
+                await FirebaseService.instance.clients.doc(uid).get();
+            final daily =
+                snap.data()?['dailyStats'] as Map<String, dynamic>?;
+            final today = daily?[todayKey] as Map<String, dynamic>?;
+            final saved = (today?['stepBaseline'] as num?)?.toInt();
+            if (saved != null) {
+              _stepBaseline = saved;
+            } else {
+              _stepBaseline = event.steps;
+              FirebaseService.instance.clients.doc(uid).set({
+                'dailyStats': {
+                  todayKey: {'stepBaseline': _stepBaseline}
+                },
+              }, SetOptions(merge: true)).catchError((_) {});
+            }
+          }
+
+          final daily = (event.steps - _stepBaseline).clamp(0, 999999);
+          if (mounted) {
+            setState(() {
+              _userData['currentSteps'] = daily;
+              _userData['distanceKm'] =
+                  double.parse((daily * 0.000762).toStringAsFixed(2));
+            });
+          }
+          FirebaseService.instance.clients.doc(uid).set({
+            'dailyStats': {
+              todayKey: {'stepCount': daily}
+            },
+          }, SetOptions(merge: true)).catchError((_) {});
+        },
+        onError: (error) => debugPrint('Pedometer error: $error'),
+        cancelOnError: false,
+      );
+    } catch (e) {
+      debugPrint('Pedometer init error: $e');
+    }
+  }
+
+  // ── Meal plan from Firestore ───────────────────────────────────────────────
+  Future<void> _loadTodayMealsFromPlan() async {
+    final uid = FirebaseService.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final snap = await FirebaseService.instance.plans
+          .where('clientId', isEqualTo: uid)
+          .where('format', isEqualTo: 'structured')
+          .orderBy('uploadedAt', descending: true)
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) return;
+
+      final plan = snap.docs.first.data() as Map<String, dynamic>;
+      final days = (plan['weekPlan'] as List?) ?? [];
+      final dayIdx = DateTime.now().weekday - 1; // Mon=0 … Sun=6
+      if (dayIdx >= days.length) return;
+
+      final dayData = days[dayIdx] as Map<String, dynamic>;
+      const mealKeys = [
+        'breakfast', 'midMorning', 'lunch', 'eveningSnack', 'dinner'
+      ];
+      const mealTimes = {
+        'breakfast': '8:00 AM',
+        'midMorning': '10:30 AM',
+        'lunch': '1:00 PM',
+        'eveningSnack': '4:30 PM',
+        'dinner': '7:30 PM',
+      };
+
+      final meals = <Map<String, dynamic>>[];
+      for (final key in mealKeys) {
+        final items = (dayData[key] as List?) ?? [];
+        for (final item in items) {
+          final m = item as Map<String, dynamic>;
+          meals.add({
+            'id': '${key}_${m['name']}',
+            'name': m['name'] ?? '',
+            'type': key,
+            'calories': (m['calories'] as num?)?.toInt() ?? 0,
+            'quantity': m['quantity'] ?? '',
+            'time': mealTimes[key] ?? '',
+            'isLogged': false,
+          });
+        }
+      }
+
+      if (mounted && meals.isNotEmpty) {
+        setState(() => _todayMeals = meals);
+      }
+    } catch (e) {
+      debugPrint('Failed to load meal plan: $e');
     }
   }
 
@@ -675,11 +788,200 @@ class _DashboardHomeState extends State<DashboardHome>
   }
 
   void _showMealLogging() {
-    showModalBottomSheet(
+    _logMeal();
+  }
+
+  void _logMeal() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    final nameCtrl = TextEditingController();
+    final calCtrl = TextEditingController();
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _buildMealLoggingBottomSheet(),
+      builder: (ctx) {
+        String selectedType = 'breakfast';
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('Log Meal'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Food name',
+                    hintText: 'e.g. Rice and Dal',
+                    prefixIcon: Icon(Icons.restaurant),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: calCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Calories (kcal)',
+                    hintText: 'e.g. 350',
+                    prefixIcon: Icon(Icons.local_fire_department),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedType,
+                  decoration: const InputDecoration(
+                    labelText: 'Meal type',
+                    prefixIcon: Icon(Icons.schedule),
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'breakfast', child: Text('Breakfast')),
+                    DropdownMenuItem(
+                        value: 'midMorning', child: Text('Mid-Morning')),
+                    DropdownMenuItem(value: 'lunch', child: Text('Lunch')),
+                    DropdownMenuItem(
+                        value: 'eveningSnack', child: Text('Evening Snack')),
+                    DropdownMenuItem(value: 'dinner', child: Text('Dinner')),
+                  ],
+                  onChanged: (v) =>
+                      setDialogState(() => selectedType = v!),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final name = nameCtrl.text.trim();
+                  final cal = int.tryParse(calCtrl.text.trim()) ?? 0;
+                  if (name.isEmpty) return;
+                  Navigator.pop(ctx);
+                  final uid = FirebaseService.instance.currentUser?.uid;
+                  if (uid == null) return;
+                  final todayKey =
+                      DateTime.now().toIso8601String().substring(0, 10);
+                  try {
+                    await FirebaseService.instance.clients
+                        .doc(uid)
+                        .collection('mealLogs')
+                        .add({
+                      'name': name,
+                      'calories': cal,
+                      'mealType': selectedType,
+                      'loggedAt': FieldValue.serverTimestamp(),
+                      'date': todayKey,
+                    });
+                    final newCal =
+                        (_userData['consumedCalories'] as int) + cal;
+                    await FirebaseService.instance.clients.doc(uid).set({
+                      'dailyStats': {
+                        todayKey: {'consumedCalories': newCal}
+                      },
+                    }, SetOptions(merge: true));
+                    if (mounted) {
+                      setState(
+                          () => _userData['consumedCalories'] = newCal);
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text('Meal logged: $name ($cal kcal) ✓'),
+                        backgroundColor: Colors.green,
+                      ));
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to log meal: $e')));
+                    }
+                  }
+                },
+                child: const Text('Log'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _logExercise() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    final typeCtrl = TextEditingController();
+    final durationCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log Exercise'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: typeCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Activity type',
+                hintText: 'e.g. Walking, Yoga, Cycling',
+                prefixIcon: Icon(Icons.fitness_center),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: durationCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Duration (minutes)',
+                hintText: 'e.g. 30',
+                prefixIcon: Icon(Icons.timer),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final type = typeCtrl.text.trim();
+              final mins = int.tryParse(durationCtrl.text.trim()) ?? 0;
+              if (type.isEmpty) return;
+              Navigator.pop(ctx);
+              final uid = FirebaseService.instance.currentUser?.uid;
+              if (uid == null) return;
+              try {
+                await FirebaseService.instance.clients
+                    .doc(uid)
+                    .collection('exerciseLogs')
+                    .add({
+                  'type': type,
+                  'durationMinutes': mins,
+                  'loggedAt': FieldValue.serverTimestamp(),
+                  'date':
+                      DateTime.now().toIso8601String().substring(0, 10),
+                });
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content:
+                        Text('Exercise logged: $type ($mins min) ✓'),
+                    backgroundColor: Colors.green,
+                  ));
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to log exercise: $e')));
+                }
+              }
+            },
+            child: const Text('Log'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -752,42 +1054,6 @@ class _DashboardHomeState extends State<DashboardHome>
     );
   }
 
-  Widget _buildMealLoggingBottomSheet() {
-    return Container(
-      height: 60.h,
-      decoration: BoxDecoration(
-        color: AppTheme.lightTheme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: EdgeInsets.all(4.w),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 12.w,
-              height: 0.5.h,
-              decoration: BoxDecoration(
-                color: AppTheme.lightTheme.colorScheme.outline,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          SizedBox(height: 2.h),
-          Text(
-            'Log Your Meal',
-            style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          SizedBox(height: 2.h),
-          _buildQuickLogOption('Search Food', 'search', () {}),
-          _buildQuickLogOption('Take Photo', 'camera_alt', () {}),
-          _buildQuickLogOption('Voice Input', 'mic', () {}),
-        ],
-      ),
-    );
-  }
 
   Widget _buildQuickLogBottomSheet() {
     return Container(
@@ -821,7 +1087,8 @@ class _DashboardHomeState extends State<DashboardHome>
           Row(
             children: [
               Expanded(
-                  child: _buildQuickLogOption('Log Meal', 'restaurant', () {})),
+                  child: _buildQuickLogOption(
+                      'Log Meal', 'restaurant', _logMeal)),
               SizedBox(width: 2.w),
               Expanded(
                   child: _buildQuickLogOption(
@@ -837,7 +1104,7 @@ class _DashboardHomeState extends State<DashboardHome>
               SizedBox(width: 2.w),
               Expanded(
                   child: _buildQuickLogOption(
-                      'Add Exercise', 'fitness_center', () {})),
+                      'Add Exercise', 'fitness_center', _logExercise)),
             ],
           ),
         ],

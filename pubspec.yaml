@@ -36,6 +36,8 @@ dependencies:
   google_generative_ai: ^0.4.6
   url_launcher: ^6.3.0
   google_sign_in: ^6.2.1
+  pedometer: ^4.0.2
+  permission_handler: ^11.3.1
 dev_dependencies:
   flutter_test:    # CRITICAL: Required for Flutter project testing - DO NOT REMOVE
     sdk: flutter   # CRITICAL: Required for Flutter project testing - DO NOT REMOVE

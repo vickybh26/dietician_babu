@@ -48,5 +48,7 @@
         <key>NSAllowsArbitraryLoads</key>
         <true />
     </dict>
+	<key>NSMotionUsageDescription</key>
+	<string>DieticianBabu uses your motion data to count your daily steps.</string>
 </dict>
 </plist>

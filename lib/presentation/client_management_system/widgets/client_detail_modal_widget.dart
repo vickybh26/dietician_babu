@@ -1,6 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../services/client_management_service.dart';
+import '../../../services/firebase_service.dart';
 
 class ClientDetailModalWidget extends StatefulWidget {
   final String clientId;
@@ -20,23 +22,56 @@ class _ClientDetailModalWidgetState extends State<ClientDetailModalWidget>
   bool _isLoading = true;
   Map<String, dynamic>? _clientData;
 
+  // Admin settings controllers
+  final _doctorNameCtrl = TextEditingController();
+  final _consultDateCtrl = TextEditingController();
+  final _consultTimeCtrl = TextEditingController();
+  final _targetCalCtrl = TextEditingController();
+  final _targetWaterCtrl = TextEditingController();
+  String _consultType = 'video';
+  bool _isSavingSettings = false;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _loadClientDetails();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _doctorNameCtrl.dispose();
+    _consultDateCtrl.dispose();
+    _consultTimeCtrl.dispose();
+    _targetCalCtrl.dispose();
+    _targetWaterCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _loadClientDetails() async {
     try {
       setState(() => _isLoading = true);
-      final clientData = await ClientManagementService.getClientProfile(widget.clientId);
+      final clientData =
+          await ClientManagementService.getClientProfile(widget.clientId);
+
+      // Load Firebase settings for admin fields
+      final fbSnap = await FirebaseService.instance.clients
+          .doc(widget.clientId)
+          .get();
+      if (fbSnap.exists) {
+        final data = fbSnap.data()!;
+        final nc = data['nextConsultation'] as Map<String, dynamic>?;
+        _doctorNameCtrl.text = nc?['doctorName'] as String? ?? '';
+        _consultDateCtrl.text = nc?['date'] as String? ?? '';
+        _consultTimeCtrl.text = nc?['time'] as String? ?? '';
+        _consultType = nc?['type'] as String? ?? 'video';
+        _targetCalCtrl.text =
+            data['targetCalories']?.toString() ?? '1800';
+        _targetWaterCtrl.text =
+            data['targetWaterMl']?.toString() ?? '2500';
+      }
+
       setState(() {
         _clientData = clientData;
         _isLoading = false;
@@ -82,6 +117,7 @@ class _ClientDetailModalWidgetState extends State<ClientDetailModalWidget>
                             _buildSubscriptionTab(),
                             _buildMeasurementsTab(),
                             _buildActivityTab(),
+                            _buildCheckInsTab(),
                           ],
                         ),
             ),
@@ -156,12 +192,15 @@ class _ClientDetailModalWidgetState extends State<ClientDetailModalWidget>
         labelColor: const Color(0xFF1976D2),
         unselectedLabelColor: Colors.grey[600],
         indicatorColor: const Color(0xFF1976D2),
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
         labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
         tabs: const [
           Tab(text: 'Profile'),
           Tab(text: 'Subscription'),
           Tab(text: 'Measurements'),
           Tab(text: 'Activity'),
+          Tab(text: 'Check-ins'),
         ],
       ),
     );
@@ -240,9 +279,217 @@ class _ClientDetailModalWidgetState extends State<ClientDetailModalWidget>
               ),
             ],
           ),
+          const SizedBox(height: 24),
+          _buildAdminSettingsSection(),
         ],
       ),
     );
+  }
+
+  Widget _buildAdminSettingsSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.admin_panel_settings,
+                  color: Colors.blue[700], size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Admin Settings',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue[700],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Next Consultation',
+            style: GoogleFonts.inter(
+                fontSize: 13,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _doctorNameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Doctor Name',
+                    hintText: 'e.g. Dr. Sharma',
+                    prefixIcon: Icon(Icons.person, size: 18),
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: StatefulBuilder(
+                  builder: (ctx, setSt) => DropdownButtonFormField<String>(
+                    value: _consultType,
+                    decoration: const InputDecoration(
+                      labelText: 'Type',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'video', child: Text('Video')),
+                      DropdownMenuItem(
+                          value: 'in-person', child: Text('In-Person')),
+                      DropdownMenuItem(value: 'phone', child: Text('Phone')),
+                    ],
+                    onChanged: (v) => setState(() => _consultType = v!),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _consultDateCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Date (YYYY-MM-DD)',
+                    hintText: '2024-12-01',
+                    prefixIcon: Icon(Icons.calendar_today, size: 18),
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _consultTimeCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Time',
+                    hintText: '10:00 AM',
+                    prefixIcon: Icon(Icons.access_time, size: 18),
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Daily Targets',
+            style: GoogleFonts.inter(
+                fontSize: 13,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _targetCalCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Target Calories (kcal)',
+                    hintText: '1800',
+                    prefixIcon:
+                        Icon(Icons.local_fire_department, size: 18),
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _targetWaterCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Target Water (ml)',
+                    hintText: '2500',
+                    prefixIcon: Icon(Icons.water_drop, size: 18),
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isSavingSettings ? null : _saveAdminSettings,
+              icon: _isSavingSettings
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.save),
+              label: Text(
+                  _isSavingSettings ? 'Saving...' : 'Save Settings'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1976D2),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveAdminSettings() async {
+    setState(() => _isSavingSettings = true);
+    try {
+      final targetCal =
+          int.tryParse(_targetCalCtrl.text.trim()) ?? 1800;
+      final targetWater =
+          int.tryParse(_targetWaterCtrl.text.trim()) ?? 2500;
+      final Map<String, dynamic> updateData = {
+        'targetCalories': targetCal,
+        'targetWaterMl': targetWater,
+      };
+      if (_doctorNameCtrl.text.trim().isNotEmpty) {
+        updateData['nextConsultation'] = {
+          'doctorName': _doctorNameCtrl.text.trim(),
+          'date': _consultDateCtrl.text.trim(),
+          'time': _consultTimeCtrl.text.trim(),
+          'type': _consultType,
+        };
+      }
+      await FirebaseService.instance.clients
+          .doc(widget.clientId)
+          .set(updateData, SetOptions(merge: true));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Client settings saved ✓'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to save: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingSettings = false);
+    }
   }
 
   Widget _buildSubscriptionTab() {
@@ -546,6 +793,138 @@ class _ClientDetailModalWidgetState extends State<ClientDetailModalWidget>
             )),
         ],
       ),
+    );
+  }
+
+  Widget _buildCheckInsTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseService.instance.weeklyUpdates
+          .where('clientId', isEqualTo: widget.clientId)
+          .orderBy('submittedAt', descending: true)
+          .limit(20)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.assignment_turned_in_outlined,
+                    size: 48, color: Colors.grey),
+                SizedBox(height: 12),
+                Text('No check-ins yet',
+                    style: TextStyle(color: Colors.grey, fontSize: 16)),
+                SizedBox(height: 6),
+                Text('Weekly check-ins will appear here',
+                    style: TextStyle(color: Colors.grey, fontSize: 13)),
+              ],
+            ),
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final data = docs[index].data() as Map<String, dynamic>;
+            final submittedAt = data['submittedAt'] as Timestamp?;
+            final date = submittedAt?.toDate();
+            final dateStr = date != null
+                ? '${date.day}/${date.month}/${date.year}'
+                : 'Unknown date';
+            final weight = data['weight'];
+            final notes = data['notes'] as String? ?? '';
+            // Extra fields to display
+            final extraKeys = data.keys
+                .where((k) => !['clientId', 'submittedAt', 'weight', 'notes']
+                    .contains(k))
+                .toList();
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        dateStr,
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF1976D2),
+                          fontSize: 14,
+                        ),
+                      ),
+                      if (weight != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.green[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.green[200]!),
+                          ),
+                          child: Text(
+                            '$weight kg',
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green[700],
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (notes.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      notes,
+                      style: GoogleFonts.inter(
+                          fontSize: 13, color: Colors.grey[700]),
+                    ),
+                  ],
+                  if (extraKeys.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: extraKeys.map((k) {
+                        final v = data[k];
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '$k: $v',
+                            style: GoogleFonts.inter(
+                                fontSize: 11, color: Colors.blue[700]),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
