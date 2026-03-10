@@ -7,16 +7,24 @@ class DailyCalorieProgressWidget extends StatelessWidget {
   final int consumedCalories;
   final int targetCalories;
   final VoidCallback? onTap;
+  final VoidCallback? onNudgeAdmin;
+  final bool isTargetSet;
 
   const DailyCalorieProgressWidget({
     super.key,
     required this.consumedCalories,
     required this.targetCalories,
+    required this.isTargetSet,
     this.onTap,
+    this.onNudgeAdmin,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (!isTargetSet) {
+      return _buildNudgeState();
+    }
+
     final double progress = targetCalories > 0
         ? (consumedCalories / targetCalories).clamp(0.0, 1.0)
         : 0.0;
@@ -156,6 +164,71 @@ class DailyCalorieProgressWidget extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildNudgeState() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(4.w),
+      margin: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
+      decoration: BoxDecoration(
+        color: AppTheme.lightTheme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.lightTheme.colorScheme.primary.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.lightTheme.colorScheme.shadow.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              CustomIconWidget(
+                iconName: 'local_fire_department',
+                color: Colors.orange,
+                size: 24,
+              ),
+              SizedBox(width: 3.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'No Calorie Goal Set',
+                      style: AppTheme.lightTheme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      'Ask your dietician to set a daily target for you.',
+                      style: AppTheme.lightTheme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 2.h),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: onNudgeAdmin,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.lightTheme.colorScheme.primary.withValues(alpha: 0.1),
+                foregroundColor: AppTheme.lightTheme.colorScheme.primary,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Nudge Dietician'),
+            ),
+          ),
+        ],
       ),
     );
   }

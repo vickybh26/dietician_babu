@@ -41,12 +41,12 @@ android {
 
     defaultConfig {
         applicationId = "com.example.dietician_babu"
-        minSdk = 23
+        minSdkVersion = flutter.minSdkVersion
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled true
-        minSdkVersion 23
+        minSdkVersion flutter.minSdkVersion
     }
 
     buildTypes {

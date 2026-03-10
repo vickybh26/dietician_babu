@@ -30,17 +30,21 @@ class _DashboardHomeState extends State<DashboardHome>
   String _userName = 'Welcome';
   String _subscriptionPlan = 'none';
   String _subscriptionStatus = 'none';
+  String _country = 'India';
 
   // Static dashboard data
   final Map<String, dynamic> _userData = {
-    "targetCalories": 1800,
+    "targetCalories": 0, // Default to 0 to trigger nudge if not set
     "consumedCalories": 0,
-    "targetWater": 2500,
+    "targetWater": 0,    // Default to 0 to trigger nudge if not set
     "currentWater": 0,
     "targetSteps": 10000,
     "currentSteps": 0,
     "distanceKm": 0.0,
   };
+
+  bool _isCalorieTargetSet = false;
+  bool _isWaterTargetSet = false;
 
   List<Map<String, dynamic>> _todayMeals = [];
 
@@ -74,19 +78,20 @@ class _DashboardHomeState extends State<DashboardHome>
           await FirebaseService.instance.users.doc(uid).get();
 
       if (mounted) {
-        // ── Daily stats (water) ──────────────────────────────────────────────
         final todayKey = DateTime.now().toIso8601String().substring(0, 10);
         int savedWaterMl = 0;
         int savedStepCount = 0;
         int savedConsumedCal = 0;
-        int targetCal = 1800;
-        int targetWater = 2500;
+        int targetCal = 0;
+        int targetWater = 0;
+        bool calSet = false;
+        bool waterSet = false;
+        String country = 'India';
         Map<String, dynamic>? consultation;
 
         if (clientSnap.exists) {
           final data = clientSnap.data()!;
 
-          // Today's stats from nested dailyStats map
           final dailyStats = data['dailyStats'] as Map<String, dynamic>?;
           final todayStats = dailyStats?[todayKey] as Map<String, dynamic>?;
           savedWaterMl = (todayStats?['waterMl'] as num?)?.toInt() ?? 0;
@@ -94,11 +99,18 @@ class _DashboardHomeState extends State<DashboardHome>
           savedConsumedCal =
               (todayStats?['consumedCalories'] as num?)?.toInt() ?? 0;
 
-          // Optional custom targets set by admin
-          targetCal = (data['targetCalories'] as num?)?.toInt() ?? 1800;
-          targetWater = (data['targetWaterMl'] as num?)?.toInt() ?? 2500;
+          // Check if admin has explicitly set targets
+          if (data['targetCalories'] != null && (data['targetCalories'] as num) > 0) {
+            targetCal = (data['targetCalories'] as num).toInt();
+            calSet = true;
+          }
+          if (data['targetWaterMl'] != null && (data['targetWaterMl'] as num) > 0) {
+            targetWater = (data['targetWaterMl'] as num).toInt();
+            waterSet = true;
+          }
 
-          // Consultation data written by admin
+          country = data['country'] as String? ?? 'India';
+
           final nc = data['nextConsultation'] as Map<String, dynamic>?;
           if (nc != null && (nc['doctorName'] as String? ?? '').isNotEmpty) {
             String dateDisplay = nc['date'] as String? ?? '';
@@ -123,13 +135,11 @@ class _DashboardHomeState extends State<DashboardHome>
         }
 
         setState(() {
-          // Get name from user record
           final phone = userSnap.data()?['phone'] as String? ?? '';
           final email = userSnap.data()?['email'] as String? ?? '';
           _userName = userSnap.data()?['name'] as String? ??
               (phone.isNotEmpty ? phone : email.split('@').first);
 
-          // Subscription info from client record
           if (clientSnap.exists) {
             _subscriptionPlan =
                 clientSnap.data()?['subscriptionPlan'] as String? ?? 'none';
@@ -137,12 +147,14 @@ class _DashboardHomeState extends State<DashboardHome>
                 clientSnap.data()?['subscriptionStatus'] as String? ?? 'none';
           }
 
-          // Hydration, targets, steps, calories, consultation
           _userData['currentWater'] = savedWaterMl;
           _userData['currentSteps'] = savedStepCount;
           _userData['consumedCalories'] = savedConsumedCal;
           _userData['targetCalories'] = targetCal;
           _userData['targetWater'] = targetWater;
+          _isCalorieTargetSet = calSet;
+          _isWaterTargetSet = waterSet;
+          _country = country;
           _upcomingConsultation = consultation;
         });
         _loadTodayMealsFromPlan();
@@ -168,7 +180,6 @@ class _DashboardHomeState extends State<DashboardHome>
           if (uid == null) return;
           final todayKey = DateTime.now().toIso8601String().substring(0, 10);
 
-          // Initialise baseline once per day
           if (_stepBaseline < 0) {
             final snap =
                 await FirebaseService.instance.clients.doc(uid).get();
@@ -225,20 +236,42 @@ class _DashboardHomeState extends State<DashboardHome>
 
       final plan = snap.docs.first.data() as Map<String, dynamic>;
       final days = (plan['weekPlan'] as List?) ?? [];
-      final dayIdx = DateTime.now().weekday - 1; // Mon=0 … Sun=6
+      final dayIdx = DateTime.now().weekday - 1; 
       if (dayIdx >= days.length) return;
 
       final dayData = days[dayIdx] as Map<String, dynamic>;
       const mealKeys = [
         'breakfast', 'midMorning', 'lunch', 'eveningSnack', 'dinner'
       ];
-      const mealTimes = {
-        'breakfast': '8:00 AM',
-        'midMorning': '10:30 AM',
-        'lunch': '1:00 PM',
-        'eveningSnack': '4:30 PM',
-        'dinner': '7:30 PM',
-      };
+
+      // Regional Meal Times
+      final Map<String, String> mealTimes;
+      if (_country.toLowerCase() == 'usa') {
+        mealTimes = {
+          'breakfast': '7:00 AM',
+          'midMorning': '10:00 AM',
+          'lunch': '12:00 PM',
+          'eveningSnack': '3:30 PM',
+          'dinner': '6:30 PM',
+        };
+      } else if (_country.toLowerCase() == 'uk') {
+        mealTimes = {
+          'breakfast': '7:30 AM',
+          'midMorning': '10:30 AM',
+          'lunch': '1:00 PM',
+          'eveningSnack': '4:00 PM',
+          'dinner': '7:00 PM',
+        };
+      } else {
+        // Default (India)
+        mealTimes = {
+          'breakfast': '8:30 AM',
+          'midMorning': '11:00 AM',
+          'lunch': '1:30 PM',
+          'eveningSnack': '5:00 PM',
+          'dinner': '8:30 PM',
+        };
+      }
 
       final meals = <Map<String, dynamic>>[];
       for (final key in mealKeys) {
@@ -301,7 +334,7 @@ class _DashboardHomeState extends State<DashboardHome>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Good Morning',
+                'Welcome', // Changed from Good Morning
                 style: AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
                   color: AppTheme.lightTheme.colorScheme.onSurfaceVariant,
                 ),
@@ -374,49 +407,70 @@ class _DashboardHomeState extends State<DashboardHome>
           children: [
             SizedBox(height: 1.h),
 
-            // ── Quick Actions ────────────────────────────────────────────────
             _buildQuickActions(),
 
-            // Daily Calorie Progress
+            // Daily Calorie Progress with Nudge
             DailyCalorieProgressWidget(
               consumedCalories: _userData['consumedCalories'] as int,
               targetCalories: _userData['targetCalories'] as int,
+              isTargetSet: _isCalorieTargetSet,
               onTap: _showCalorieDetails,
+              onNudgeAdmin: () => _nudgeAdmin('calories'),
             ),
 
-            // Water Intake Tracker
+            // Water Intake Tracker with Nudge
             WaterIntakeTrackerWidget(
               currentIntake: _userData['currentWater'] as int,
               targetIntake: _userData['targetWater'] as int,
+              isTargetSet: _isWaterTargetSet,
               onAdd250ml: () => _addWater(250),
               onAdd500ml: () => _addWater(500),
+              onNudgeAdmin: () => _nudgeAdmin('water'),
             ),
 
-            // Today's Meal Plan
             MealPlanPreviewWidget(
               todayMeals: _todayMeals,
               onLogMeal: _showMealLogging,
             ),
 
-            // Step Counter
             StepCounterWidget(
               currentSteps: _userData['currentSteps'] as int,
               targetSteps: _userData['targetSteps'] as int,
               distanceKm: _userData['distanceKm'] as double,
             ),
 
-            // Consultation Reminder
             ConsultationReminderWidget(
               upcomingConsultation: _upcomingConsultation,
               onViewDetails: _viewConsultationDetails,
               onScheduleNew: _scheduleNewConsultation,
             ),
 
-            SizedBox(height: 10.h), // Bottom padding for FAB
+            SizedBox(height: 10.h),
           ],
         ),
       ),
     );
+  }
+
+  void _nudgeAdmin(String type) async {
+    final uid = FirebaseService.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseService.instance.db.collection('nudges').add({
+        'clientId': uid,
+        'clientName': _userName,
+        'type': type,
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Nudge sent to dietician for $type!')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Failed to nudge admin: $e');
+    }
   }
 
   Widget _buildBottomNavigationBar() {
@@ -514,7 +568,6 @@ class _DashboardHomeState extends State<DashboardHome>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Subscription status banner
           if (!hasSubscription)
             GestureDetector(
               onTap: () =>
@@ -587,7 +640,6 @@ class _DashboardHomeState extends State<DashboardHome>
               ),
             ),
 
-          // 4 action tiles
           Text(
             'Quick Access',
             style: AppTheme.lightTheme.textTheme.titleMedium?.copyWith(
@@ -660,10 +712,8 @@ class _DashboardHomeState extends State<DashboardHome>
   void _onBottomNavTap(int index) {
     setState(() => _currentIndex = index);
 
-    // Navigate to different screens based on index
     switch (index) {
       case 0:
-        // Already on home
         break;
       case 1:
         Navigator.pushNamed(context, '/diet-plan-viewer');
@@ -702,7 +752,6 @@ class _DashboardHomeState extends State<DashboardHome>
       ),
     );
 
-    // Persist today's water total to Firestore (fire-and-forget)
     final uid = FirebaseService.instance.currentUser?.uid;
     if (uid != null) {
       final todayKey = DateTime.now().toIso8601String().substring(0, 10);
@@ -715,7 +764,6 @@ class _DashboardHomeState extends State<DashboardHome>
   }
 
   void _logWeight() {
-    // Close quick-log sheet if open, then show dialog
     Navigator.of(context).popUntil((route) => route.isFirst);
     final ctrl = TextEditingController();
     showDialog(
@@ -750,12 +798,10 @@ class _DashboardHomeState extends State<DashboardHome>
               final uid = FirebaseService.instance.currentUser?.uid;
               if (uid == null) return;
               try {
-                // Update current weight on client doc
                 await FirebaseService.instance.clients.doc(uid).set(
                   {'weightKg': kg},
                   SetOptions(merge: true),
                 );
-                // Append entry to weightHistory subcollection
                 await FirebaseService.instance.clients
                     .doc(uid)
                     .collection('weightHistory')
@@ -969,7 +1015,8 @@ class _DashboardHomeState extends State<DashboardHome>
                     content:
                         Text('Exercise logged: $type ($mins min) ✓'),
                     backgroundColor: Colors.green,
-                  ));
+                    ),
+                  );
                 }
               } catch (e) {
                 if (mounted) {
