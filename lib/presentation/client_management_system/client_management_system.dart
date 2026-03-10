@@ -25,6 +25,7 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
   List<Map<String, dynamic>> _pendingClients = [];
   List<Map<String, dynamic>> _activeClients = [];
   List<Map<String, dynamic>> _inactiveClients = [];
+  Map<String, List<String>> _clientNudges = {};
   List<String> _selectedClients = [];
 
   @override
@@ -44,14 +45,19 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
     try {
       setState(() => _isLoading = true);
       
-      final pendingClients = await ClientManagementService.getPendingApprovals();
-      final activeClients = await ClientManagementService.getAllClients(status: 'active');
-      final inactiveClients = await ClientManagementService.getAllClients(status: 'inactive');
+      // Fetch data in parallel
+      final results = await Future.wait([
+        ClientManagementService.getPendingApprovals(),
+        ClientManagementService.getAllClients(status: 'active'),
+        ClientManagementService.getAllClients(status: 'inactive'),
+        ClientManagementService.getNudges(),
+      ]);
       
       setState(() {
-        _pendingClients = pendingClients;
-        _activeClients = activeClients;
-        _inactiveClients = inactiveClients;
+        _pendingClients = results[0] as List<Map<String, dynamic>>;
+        _activeClients = results[1] as List<Map<String, dynamic>>;
+        _inactiveClients = results[2] as List<Map<String, dynamic>>;
+        _clientNudges = results[3] as Map<String, List<String>>;
         _isLoading = false;
       });
     } catch (e) {
@@ -70,27 +76,21 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
       title: 'Client Management',
       body: Column(
         children: [
-          // Header
           _buildHeader(),
 
-          // Search and Filter
           ClientSearchFilterWidget(
             searchQuery: _searchQuery,
             selectedFilter: _selectedFilter,
             onSearchChanged: (query) {
               setState(() => _searchQuery = query);
-              _filterClients();
             },
             onFilterChanged: (filter) {
               setState(() => _selectedFilter = filter);
-              _filterClients();
             },
           ),
 
-          // Tab Bar
           _buildTabBar(),
 
-          // Tab Content
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -109,6 +109,7 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
                       ActiveClientsTabWidget(
                         clients: _activeClients,
                         searchQuery: _searchQuery,
+                        clientNudges: _clientNudges, // Pass nudges here
                         onViewDetails: _showClientDetails,
                         onUpdateStatus: _updateClientStatus,
                         onSendMessage: _sendMessage,
@@ -116,6 +117,7 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
                       ActiveClientsTabWidget(
                         clients: _inactiveClients,
                         searchQuery: _searchQuery,
+                        clientNudges: _clientNudges,
                         isInactive: true,
                         onViewDetails: _showClientDetails,
                         onUpdateStatus: _updateClientStatus,
@@ -131,6 +133,8 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
   }
 
   Widget _buildHeader() {
+    final int nudgeCount = _clientNudges.length;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       decoration: const BoxDecoration(
@@ -156,13 +160,11 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
                       ),
                     ),
                     Text(
-                      'Manage approvals, subscriptions & communications',
+                      'Manage approvals, targets & communications',
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         color: Colors.grey[600],
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -171,16 +173,6 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
                 onPressed: _loadClientData,
                 icon: const Icon(Icons.refresh),
                 tooltip: 'Refresh Data',
-              ),
-              ElevatedButton.icon(
-                onPressed: _exportClientData,
-                icon: const Icon(Icons.file_download, size: 16),
-                label: const Text('Export'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1976D2),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
               ),
             ],
           ),
@@ -191,7 +183,7 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
               const SizedBox(width: 12),
               _buildStatCard('Active', _activeClients.length.toString(), Colors.green),
               const SizedBox(width: 12),
-              _buildStatCard('Inactive', _inactiveClients.length.toString(), Colors.red),
+              _buildStatCard('Nudges', nudgeCount.toString(), Colors.red, showBell: nudgeCount > 0),
             ],
           ),
         ],
@@ -199,7 +191,7 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
     );
   }
 
-  Widget _buildStatCard(String title, String value, Color color) {
+  Widget _buildStatCard(String title, String value, Color color, {bool showBell = false}) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -210,13 +202,20 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
         ),
         child: Column(
           children: [
-            Text(
-              value,
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (showBell) const Icon(Icons.notifications_active, color: Colors.red, size: 16),
+                if (showBell) const SizedBox(width: 4),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ],
             ),
             Text(
               title,
@@ -244,32 +243,7 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
         labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
         unselectedLabelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w400),
         tabs: [
-          Tab(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Pending'),
-                if (_pendingClients.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.orange,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '${_pendingClients.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          Tab(text: 'Pending (${_pendingClients.length})'),
           const Tab(text: 'Active'),
           const Tab(text: 'Inactive'),
           const Tab(text: 'Flagged'),
@@ -279,39 +253,7 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
   }
 
   Widget _buildFlaggedAccountsTab() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.flag_outlined,
-            size: 64,
-            color: Colors.grey,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'No Flagged Accounts',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Accounts with issues will appear here',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _filterClients() {
-    // Implementation for filtering clients based on search and filter criteria
-    _loadClientData();
+    return const Center(child: Text('No flagged accounts'));
   }
 
   void _handleClientSelection(String clientId, bool selected) {
@@ -325,203 +267,60 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
   }
 
   Future<void> _approveClient(String clientId) async {
-    try {
-      final success = await ClientManagementService.approveClient(clientId);
-      if (success) {
-        _loadClientData();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Client approved successfully')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error approving client: $e')),
-        );
-      }
-    }
+    await ClientManagementService.approveClient(clientId);
+    _loadClientData();
   }
 
   Future<void> _rejectClient(String clientId) async {
-    final reason = await _showRejectDialog();
-    if (reason != null && reason.isNotEmpty) {
-      try {
-        final success = await ClientManagementService.rejectClient(clientId, reason);
-        if (success) {
-          _loadClientData();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Client rejected')),
-            );
-          }
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error rejecting client: $e')),
-          );
-        }
-      }
-    }
+    await ClientManagementService.rejectClient(clientId, 'Rejected by admin');
+    _loadClientData();
   }
 
   Future<void> _bulkApproveClients() async {
-    if (_selectedClients.isEmpty) return;
-    
-    try {
-      final success = await ClientManagementService.bulkApproveClients(_selectedClients);
-      if (success) {
-        setState(() => _selectedClients.clear());
-        _loadClientData();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${_selectedClients.length} clients approved')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error bulk approving: $e')),
-        );
-      }
-    }
+    await ClientManagementService.bulkApproveClients(_selectedClients);
+    _selectedClients.clear();
+    _loadClientData();
   }
 
   Future<void> _updateClientStatus(String clientId, String status) async {
-    try {
-      final success = await ClientManagementService.updateClientStatus(clientId, status);
-      if (success) {
-        _loadClientData();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Client status updated')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating status: $e')),
-        );
-      }
-    }
+    await ClientManagementService.updateClientStatus(clientId, status);
+    _loadClientData();
   }
 
   Future<void> _sendMessage(String clientId) async {
-    final message = await _showMessageDialog();
-    if (message != null && message.isNotEmpty) {
-      try {
-        final success = await ClientManagementService.sendMessageToClient(clientId, message);
-        if (success && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Message sent successfully')),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error sending message: $e')),
-          );
-        }
-      }
-    }
+    // Placeholder for send message dialog
   }
 
-  void _showClientDetails(String clientId) async {
+  void _showClientDetails(String uid) async {
+    final clientData = await ClientManagementService.getClientProfile(uid);
+    if (!mounted || clientData == null) return;
+
     showDialog(
       context: context,
-      builder: (context) => ClientDetailModalWidget(clientId: clientId),
-    );
-  }
-
-  Future<void> _exportClientData() async {
-    try {
-      final _ = await ClientManagementService.exportClientData();
-      // In a real app, this would trigger file download
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Export functionality coming soon!')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export error: $e')),
-        );
-      }
-    }
-  }
-
-  Future<String?> _showRejectDialog() async {
-    final controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reject Client'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Please provide a reason for rejection:'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                hintText: 'Enter reason...',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Reject', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<String?> _showMessageDialog() async {
-    final controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Send Message'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Enter your message:'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                hintText: 'Type your message...',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Send'),
-          ),
-        ],
+      builder: (context) => ClientDetailModalWidget(
+        clientData: clientData,
+        nudges: _clientNudges[uid] ?? [],
+        onSaveTargets: (calories, water, country) async {
+          await ClientManagementService.updateClientProfile(uid, {
+            'targetCalories': calories,
+            'targetWaterMl': water,
+            'country': country,
+          });
+          
+          // Mark nudges as resolved
+          final nudgeSnap = await FirebaseService.instance.db
+              .collection('nudges')
+              .where('clientId', isEqualTo: uid)
+              .get();
+          
+          final batch = FirebaseService.instance.db.batch();
+          for (var doc in nudgeSnap.docs) {
+            batch.update(doc.reference, {'status': 'resolved'});
+          }
+          await batch.commit();
+          
+          _loadClientData();
+        },
       ),
     );
   }

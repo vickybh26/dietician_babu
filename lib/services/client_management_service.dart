@@ -154,4 +154,26 @@ class ClientManagementService {
       return data;
     }).toList();
   }
+
+  static Future<Map<String, List<String>>> getNudges() async {
+    try {
+      final snap = await _fs.db
+          .collection('nudges')
+          .where('status', isEqualTo: 'pending')
+          .get();
+      final nudges = <String, List<String>>{};
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final clientId = data['clientId'] as String?;
+        final type = data['type'] as String?;
+        if (clientId != null && type != null) {
+          nudges.putIfAbsent(clientId, () => []).add(type);
+        }
+      }
+      return nudges;
+    } catch (e) {
+      // Silently fail for now, UI won't show nudges
+      return {};
+    }
+  }
 }
