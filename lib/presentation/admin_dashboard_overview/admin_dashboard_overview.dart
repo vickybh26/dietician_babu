@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:sizer/sizer.dart';
 import '../../core/app_export.dart';
-import '../../routes/app_routes.dart';
 import '../../services/admin_dashboard_service.dart';
 import 'widgets/stats_card_widget.dart';
 import 'widgets/revenue_chart_widget.dart';
 import 'widgets/recent_activity_widget.dart';
 import 'widgets/quick_actions_widget.dart';
-import 'widgets/admin_sidebar_widget.dart';
 import 'widgets/admin_scaffold.dart';
 
 class AdminDashboardOverview extends StatefulWidget {
@@ -59,14 +56,14 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: EdgeInsets.all(4.w),
+              padding: const EdgeInsets.all(24.0), // Standard pixel padding
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHeader(),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
                   _buildStatsCards(),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
                   RevenueChartWidget(
                     analytics: _analytics,
                     selectedTimeRange: _selectedTimeRange,
@@ -75,9 +72,9 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
                       _loadDashboardData();
                     },
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
                   RecentActivityWidget(activities: _recentActivity),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
                   QuickActionsWidget(
                     pendingApprovals: _analytics['pendingApprovals'] ?? 0,
                     onRefresh: _loadDashboardData,
@@ -99,16 +96,16 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
               Text(
                 'Dashboard Overview',
                 style: GoogleFonts.inter(
-                  fontSize: 16.sp,
+                  fontSize: 28, // Standard fixed font size
                   fontWeight: FontWeight.bold,
                   color: Colors.grey[800],
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Text(
                 'Here\'s what\'s happening today.',
                 style: GoogleFonts.inter(
-                  fontSize: 11.sp,
+                  fontSize: 16,
                   color: Colors.grey[600],
                 ),
               ),
@@ -126,58 +123,52 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
 
   Widget _buildStatsCards() {
     final pending = _analytics['pendingApprovals'] ?? 0;
-    return Column(
+    final growth = _analytics['revenueGrowth'] as double? ?? 0.0;
+
+    return Row(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: StatsCardWidget(
-                title: 'Active Subscriptions',
-                value: '${_analytics['activeSubscriptions'] ?? 0}',
-                change: '+${_analytics['revenueGrowth']?.toStringAsFixed(1) ?? '0'}%',
-                changeColor: Colors.green,
-                icon: Icons.people_alt,
-                iconColor: const Color(0xFF2E7D32),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: StatsCardWidget(
-                title: 'Monthly Revenue',
-                value: '₹${(_analytics['totalRevenue'] ?? 0).toStringAsFixed(0)}',
-                change: 'This month',
-                changeColor: Colors.green,
-                icon: Icons.trending_up,
-                iconColor: const Color(0xFF1976D2),
-              ),
-            ),
-          ],
+        Expanded(
+          child: StatsCardWidget(
+            title: 'Active Subscriptions',
+            value: '${_analytics['activeSubscriptions'] ?? 0}',
+            change: growth >= 0 ? '+$growth%' : '$growth%',
+            changeColor: growth >= 0 ? Colors.green : Colors.red,
+            icon: Icons.people_alt,
+            iconColor: const Color(0xFF2E7D32),
+          ),
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: StatsCardWidget(
-                title: 'Pending Approvals',
-                value: '$pending',
-                change: pending > 0 ? 'Action needed' : 'All clear',
-                changeColor: pending > 0 ? Colors.orange : Colors.green,
-                icon: Icons.pending_actions,
-                iconColor: const Color(0xFFFF9800),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: StatsCardWidget(
-                title: 'Total Clients',
-                value: '${_analytics['totalClients'] ?? 0}',
-                change: 'Registered',
-                changeColor: Colors.green,
-                icon: Icons.favorite,
-                iconColor: const Color(0xFFE91E63),
-              ),
-            ),
-          ],
+        const SizedBox(width: 20),
+        Expanded(
+          child: StatsCardWidget(
+            title: 'Monthly Revenue',
+            value: '₹${(_analytics['totalRevenue'] ?? 0).toStringAsFixed(0)}',
+            change: 'This month',
+            changeColor: Colors.blue,
+            icon: Icons.trending_up,
+            iconColor: const Color(0xFF1976D2),
+          ),
+        ),
+        const SizedBox(width: 20),
+        Expanded(
+          child: StatsCardWidget(
+            title: 'Pending Approvals',
+            value: '$pending',
+            change: pending > 0 ? 'Action needed' : 'All clear',
+            changeColor: pending > 0 ? Colors.orange : Colors.green,
+            icon: Icons.pending_actions,
+            iconColor: const Color(0xFFFF9800),
+          ),
+        ),
+        const SizedBox(width: 20),
+        Expanded(
+          child: StatsCardWidget(
+            title: 'Total Clients',
+            value: '${_analytics['totalClients'] ?? 0}',
+            change: 'Registered',
+            changeColor: Colors.grey,
+            icon: Icons.group,
+            iconColor: const Color(0xFFE91E63),
+          ),
         ),
       ],
     );

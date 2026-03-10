@@ -6,34 +6,57 @@ class AdminDashboardService {
 
   static Future<Map<String, dynamic>> getDashboardAnalytics() async {
     try {
+      // 1. Active Subscriptions
       final activeSubs = await _fs.clients
           .where('subscriptionStatus', isEqualTo: 'active')
           .get();
 
+      // 2. Total Clients
       final allClients = await _fs.users
           .where('role', isEqualTo: 'client')
           .get();
 
+      // 3. Revenue Calculation (Current Month vs Last Month)
       final now = DateTime.now();
-      final startOfMonth = DateTime(now.year, now.month, 1);
-      final payments = await _fs.payments
+      final startOfCurrentMonth = DateTime(now.year, now.month, 1);
+      final startOfLastMonth = DateTime(now.year, now.month - 1, 1);
+      
+      final currentMonthPayments = await _fs.payments
           .where('status', isEqualTo: 'success')
-          .where('paidAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
+          .where('paidAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfCurrentMonth))
           .get();
 
-      final totalRevenue = payments.docs.fold<double>(
+      final lastMonthPayments = await _fs.payments
+          .where('status', isEqualTo: 'success')
+          .where('paidAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfLastMonth))
+          .where('paidAt', isLessThan: Timestamp.fromDate(startOfCurrentMonth))
+          .get();
+
+      final currentRevenue = currentMonthPayments.docs.fold<double>(
+          0, (sum, doc) => sum + ((doc.data()['priceInr'] as num?)?.toDouble() ?? 0));
+      
+      final lastRevenue = lastMonthPayments.docs.fold<double>(
           0, (sum, doc) => sum + ((doc.data()['priceInr'] as num?)?.toDouble() ?? 0));
 
+      // Calculate Growth %
+      double revenueGrowth = 0.0;
+      if (lastRevenue > 0) {
+        revenueGrowth = ((currentRevenue - lastRevenue) / lastRevenue) * 100;
+      } else if (currentRevenue > 0) {
+        revenueGrowth = 100.0; // 100% growth if there was no revenue last month
+      }
+
+      // 4. Correct Pending Approvals Sync (Checks for status 'none' or 'pending')
       final pendingClients = await _fs.clients
-          .where('subscriptionStatus', isEqualTo: 'none')
+          .where('subscriptionStatus', whereIn: ['none', 'pending'])
           .get();
 
       return {
         'activeSubscriptions': activeSubs.docs.length,
         'totalClients': allClients.docs.length,
-        'totalRevenue': totalRevenue,
+        'totalRevenue': currentRevenue,
         'pendingApprovals': pendingClients.docs.length,
-        'revenueGrowth': 12.5,
+        'revenueGrowth': revenueGrowth,
       };
     } catch (e) {
       throw Exception('Failed to fetch dashboard analytics: $e');

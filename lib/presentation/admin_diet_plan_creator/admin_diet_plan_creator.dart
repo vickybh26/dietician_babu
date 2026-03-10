@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:sizer/sizer.dart';
 
-import '../../core/client_tags.dart';     // ← shared tag definitions
+import '../../core/client_tags.dart';
 import '../../services/firebase_service.dart';
 import '../../config/secrets.dart';
 import '../../theme/app_theme.dart';
@@ -108,7 +108,6 @@ class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
         final entry = <String, dynamic>{};
         entry['uid'] = doc.id;
         entry['profile'] = clientDocData;
-        // tags are stored directly on the client profile
         entry['tags'] = (clientDocData['tags'] as List?)
                 ?.map((t) => t.toString())
                 .toList() ??
@@ -139,8 +138,6 @@ class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
     }
   }
 
-  // ─── Select client: auto-populate tags from their profile ─────────────────
-
   void _selectClient(String uid, Map<String, dynamic>? profile) {
     setState(() {
       _selectedClientId = uid;
@@ -148,7 +145,6 @@ class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
       _showClientList = false;
     });
 
-    // Load client's saved tags and pre-select them
     final clientEntry = _clients.firstWhere(
       (c) => c['uid'] == uid,
       orElse: () => {},
@@ -162,7 +158,35 @@ class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
     }
   }
 
-  // ─── Gemini generation ─────────────────────────────────────────────────────
+  Future<void> _loadFromLibrary() async {
+    // Show a dialog to pick an existing plan
+    final selectedPlan = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => _PlanPickerPopup(),
+    );
+
+    if (selectedPlan != null && mounted) {
+      setState(() {
+        _titleController.text = selectedPlan['title'] ?? '';
+        _notesController.text = selectedPlan['notes'] ?? '';
+        _selectedTags.clear();
+        _selectedTags.addAll((selectedPlan['tags'] as List?)?.map((e) => e.toString()) ?? []);
+        
+        final weekData = selectedPlan['weekPlan'] as List?;
+        if (weekData != null) {
+          _weekPlan = weekData.map((d) => DayPlan(
+            day: d['day'] ?? '',
+            breakfast: _parseItems(d['breakfast']),
+            midMorning: _parseItems(d['midMorning']),
+            lunch: _parseItems(d['lunch']),
+            eveningSnack: _parseItems(d['eveningSnack']),
+            dinner: _parseItems(d['dinner']),
+          )).toList();
+          _step = 1;
+        }
+      });
+    }
+  }
 
   Future<void> _generateWithGemini() async {
     setState(() => _generating = true);
@@ -185,7 +209,6 @@ class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
           (profile['dietaryRestrictions'] as List?)?.join(', ') ?? 'none';
       final cuisines =
           (profile['cuisines'] as List?)?.join(', ') ?? 'Indian';
-      // ← Include client's own tags in the AI prompt
       final clientTags = (profile['tags'] as List?)?.join(', ') ?? '';
 
       promptSuffix = '''
@@ -343,8 +366,6 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
         .toList();
   }
 
-  // ─── Save plan ─────────────────────────────────────────────────────────────
-
   Future<void> _savePlan() async {
     if (_weekPlan.isEmpty) return;
     setState(() => _saving = true);
@@ -357,7 +378,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
             : _planTitle,
         'notes': _notesController.text.trim(),
         'tags': _selectedTags.toList(),
-        'type': 'AI Generated',
+        'type': 'Structured Plan', // FIX: Removed "AI Generated"
         'weekPlan': _weekPlan.map((d) => d.toMap()).toList(),
         'uploadedAt': FieldValue.serverTimestamp(),
         'createdBy': 'admin',
@@ -389,8 +410,6 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
     }
   }
 
-  // ─── Build ────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -401,13 +420,17 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          if (_step == 0)
+            TextButton.icon(
+              onPressed: _loadFromLibrary,
+              icon: const Icon(Icons.library_books, color: Colors.white, size: 18),
+              label: const Text('Load from Library', style: TextStyle(color: Colors.white, fontSize: 13)),
+            ),
           if (_step == 1)
             TextButton.icon(
               onPressed: _generating ? null : _generateWithGemini,
-              icon: const Icon(Icons.auto_awesome,
-                  color: Colors.white, size: 18),
-              label: const Text('Regenerate',
-                  style: TextStyle(color: Colors.white, fontSize: 13)),
+              icon: const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
+              label: const Text('Regenerate', style: TextStyle(color: Colors.white, fontSize: 13)),
             ),
         ],
       ),
@@ -494,8 +517,6 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
         ],
       );
 
-  // ─── Step 0: Plan setup ────────────────────────────────────────────────────
-
   Widget _buildPlanSetup() {
     final byCategory = kClientTagsByCategory;
     final categoryOrder = [
@@ -510,7 +531,6 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Plan title
           _sectionHeader('Plan Title'),
           TextField(
             controller: _titleController,
@@ -520,7 +540,6 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
           ),
           SizedBox(height: 3.h),
 
-          // Optional: assign to client
           GestureDetector(
             onTap: () =>
                 setState(() => _showClientList = !_showClientList),
@@ -600,7 +619,6 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
 
           SizedBox(height: 3.h),
 
-          // Tags — grouped by category
           _sectionHeader('Plan Tags'),
           Text(
             _selectedClientId != null
@@ -781,8 +799,6 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
     );
   }
 
-  // ─── Step 1: Plan editor ───────────────────────────────────────────────────
-
   Widget _buildPlanEditor() {
     if (_generating) {
       return Center(
@@ -907,8 +923,6 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       );
 
-  // ─── Step 2: Success ───────────────────────────────────────────────────────
-
   Widget _buildSuccess() => Center(
         child: Padding(
           padding: EdgeInsets.all(8.w),
@@ -975,8 +989,6 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
           ),
         ),
       );
-
-  // ─── Bottom bar ────────────────────────────────────────────────────────────
 
   Widget _buildBottomBar() {
     return Container(
@@ -1067,8 +1079,6 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
     );
   }
 }
-
-// ─── Day Card widget ──────────────────────────────────────────────────────────
 
 class _DayCard extends StatefulWidget {
   final DayPlan dayPlan;
@@ -1316,4 +1326,74 @@ class _EditableItem extends StatelessWidget {
           border: InputBorder.none,
         ),
       );
+}
+
+class _PlanPickerPopup extends StatefulWidget {
+  @override
+  State<_PlanPickerPopup> createState() => _PlanPickerPopupState();
+}
+
+class _PlanPickerPopupState extends State<_PlanPickerPopup> {
+  bool _loading = true;
+  List<Map<String, dynamic>> _plans = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPlans();
+  }
+
+  Future<void> _fetchPlans() async {
+    try {
+      // Fetch plans that are structured and not necessarily assigned to anyone yet (template plans)
+      final snap = await FirebaseService.instance.plans
+          .where('format', isEqualTo: 'structured')
+          .orderBy('uploadedAt', descending: true)
+          .limit(20)
+          .get();
+      
+      if (mounted) {
+        setState(() {
+          _plans = snap.docs.map((d) {
+            final data = d.data();
+            data['id'] = d.id;
+            return data;
+          }).toList();
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Load Existing Plan'),
+      content: SizedBox(
+        width: 400,
+        height: 400,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _plans.isEmpty
+                ? const Center(child: Text('No plans found in library.'))
+                : ListView.builder(
+                    itemCount: _plans.length,
+                    itemBuilder: (context, index) {
+                      final plan = _plans[index];
+                      return ListTile(
+                        title: Text(plan['title'] ?? 'Untitled Plan'),
+                        subtitle: Text(plan['notes'] ?? ''),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                        onTap: () => Navigator.pop(context, plan),
+                      );
+                    },
+                  ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      ],
+    );
+  }
 }
