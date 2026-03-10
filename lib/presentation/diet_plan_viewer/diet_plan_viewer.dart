@@ -7,7 +7,12 @@ import '../../services/firebase_service.dart';
 import '../../theme/app_theme.dart';
 
 class DietPlanViewer extends StatefulWidget {
-  const DietPlanViewer({Key? key}) : super(key: key);
+  /// When [isEmbedded] is true the widget renders only the body content
+  /// (plan list or empty state) without its own Scaffold/AppBar. Use this
+  /// when embedding inside another Scaffold, e.g. as the Meals tab in
+  /// DashboardHome.
+  final bool isEmbedded;
+  const DietPlanViewer({Key? key, this.isEmbedded = false}) : super(key: key);
   @override
   State<DietPlanViewer> createState() => _DietPlanViewerState();
 }
@@ -17,51 +22,59 @@ class _DietPlanViewerState extends State<DietPlanViewer> {
   Widget build(BuildContext context) {
     final uid = FirebaseService.instance.currentUser?.uid;
     if (uid == null) {
+      if (widget.isEmbedded) {
+        return const Center(child: Text('Not logged in'));
+      }
       return Scaffold(
         appBar: _appBar(),
         body: const Center(child: Text('Not logged in')),
       );
     }
 
+    final bodyContent = StreamBuilder<QuerySnapshot>(
+      stream: FirebaseService.instance.plans
+          .where('clientId', isEqualTo: uid)
+          .orderBy('uploadedAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Error loading plans: ${snapshot.error}',
+                style: TextStyle(color: Colors.red.shade400)),
+          );
+        }
+
+        final plans = snapshot.data?.docs ?? [];
+
+        if (plans.isEmpty) {
+          return _buildEmptyState();
+        }
+
+        return ListView.separated(
+          padding: EdgeInsets.all(4.w),
+          itemCount: plans.length,
+          separatorBuilder: (_, __) => SizedBox(height: 2.h),
+          itemBuilder: (context, index) {
+            final plan = plans[index].data() as Map<String, dynamic>;
+            final isStructured = plan['format'] == 'structured';
+            return isStructured
+                ? _StructuredPlanCard(plan: plan)
+                : _PlanCard(plan: plan);
+          },
+        );
+      },
+    );
+
+    // If embedded (used as a tab inside DashboardHome) skip the Scaffold wrapper.
+    if (widget.isEmbedded) return bodyContent;
+
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: _appBar(),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseService.instance.plans
-            .where('clientId', isEqualTo: uid)
-            .orderBy('uploadedAt', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Error loading plans: ${snapshot.error}',
-                  style: TextStyle(color: Colors.red.shade400)),
-            );
-          }
-
-          final plans = snapshot.data?.docs ?? [];
-
-          if (plans.isEmpty) {
-            return _buildEmptyState();
-          }
-
-          return ListView.separated(
-            padding: EdgeInsets.all(4.w),
-            itemCount: plans.length,
-            separatorBuilder: (_, __) => SizedBox(height: 2.h),
-            itemBuilder: (context, index) {
-              final plan = plans[index].data() as Map<String, dynamic>;
-              final isStructured = plan['format'] == 'structured';
-              return isStructured
-                  ? _StructuredPlanCard(plan: plan)
-                  : _PlanCard(plan: plan);
-            },
-          );
-        },
-      ),
+      body: bodyContent,
     );
   }
 
@@ -350,19 +363,6 @@ class _StructuredPlanCardState extends State<_StructuredPlanCard> {
                                 color: Colors.white70, fontSize: 11)),
                     ],
                   ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text('AI Generated',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700)),
                 ),
               ],
             ),

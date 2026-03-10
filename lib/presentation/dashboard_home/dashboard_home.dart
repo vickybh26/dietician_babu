@@ -495,38 +495,8 @@ class _DashboardHomeState extends State<DashboardHome>
         ),
         BottomNavigationBarItem(
           icon: CustomIconWidget(
-            iconName: 'restaurant_menu',
-            color: _currentIndex == 1
-                ? AppTheme.lightTheme.colorScheme.primary
-                : AppTheme.lightTheme.colorScheme.onSurfaceVariant,
-            size: 24,
-          ),
-          label: 'Meals',
-        ),
-        BottomNavigationBarItem(
-          icon: CustomIconWidget(
-            iconName: 'trending_up',
-            color: _currentIndex == 2
-                ? AppTheme.lightTheme.colorScheme.primary
-                : AppTheme.lightTheme.colorScheme.onSurfaceVariant,
-            size: 24,
-          ),
-          label: 'Progress',
-        ),
-        BottomNavigationBarItem(
-          icon: CustomIconWidget(
-            iconName: 'chat',
-            color: _currentIndex == 3
-                ? AppTheme.lightTheme.colorScheme.primary
-                : AppTheme.lightTheme.colorScheme.onSurfaceVariant,
-            size: 24,
-          ),
-          label: 'Chat',
-        ),
-        BottomNavigationBarItem(
-          icon: CustomIconWidget(
             iconName: 'person',
-            color: _currentIndex == 4
+            color: _currentIndex == 1
                 ? AppTheme.lightTheme.colorScheme.primary
                 : AppTheme.lightTheme.colorScheme.onSurfaceVariant,
             size: 24,
@@ -710,21 +680,12 @@ class _DashboardHomeState extends State<DashboardHome>
   }
 
   void _onBottomNavTap(int index) {
-    setState(() => _currentIndex = index);
-
     switch (index) {
       case 0:
+        setState(() => _currentIndex = 0);
         break;
       case 1:
-        Navigator.pushNamed(context, '/diet-plan-viewer');
-        break;
-      case 2:
-        Navigator.pushNamed(context, '/progress-tracking');
-        break;
-      case 3:
-        Navigator.pushNamed(context, '/weekly-checkin');
-        break;
-      case 4:
+        // Profile — navigate to full Settings/Profile screen
         Navigator.pushNamed(context, '/settings-profile');
         break;
     }

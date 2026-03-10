@@ -110,11 +110,6 @@ class ProfileHeaderWidget extends StatelessWidget {
                   ],
                 ),
               ),
-              CustomIconWidget(
-                iconName: 'edit',
-                color: AppTheme.lightTheme.colorScheme.onSurfaceVariant,
-                size: 20,
-              ),
             ],
           ),
           SizedBox(height: 3.h),

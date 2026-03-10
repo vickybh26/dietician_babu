@@ -25,82 +25,46 @@ class _ProgressTrackingState extends State<ProgressTracking>
   String _selectedPeriod = '1M';
   int _currentBottomNavIndex = 1; // Progress tab active
 
-  // Weight data loaded from Firestore weeklyUpdates
+  // ── Weight (from weeklyUpdates) ───────────────────────────────────────────
   List<Map<String, dynamic>> _weightData = [];
   double _currentWeight = 0.0;
   double _weightChange = 0.0;
   bool _loadingWeight = true;
 
-  final List<Map<String, dynamic>> _nutritionData = [
-    {'label': 'Protein', 'value': 30, 'percentage': 30},
-    {'label': 'Carbs', 'value': 45, 'percentage': 45},
-    {'label': 'Fats', 'value': 20, 'percentage': 20},
-    {'label': 'Fiber', 'value': 5, 'percentage': 5},
-  ];
+  // ── Measurements (from clients/{uid}/measurements subcollection) ──────────
+  List<Map<String, dynamic>> _measurementData = [];
+  bool _loadingMeasurements = true;
 
-  final List<Map<String, dynamic>> _measurementData = [
-    {
-      'bodyPart': 'Waist',
-      'measurement': '82.5',
-      'unit': 'cm',
-      'change': '-2.3 cm',
-      'isPositiveChange': true,
-    },
-    {
-      'bodyPart': 'Chest',
-      'measurement': '98.2',
-      'unit': 'cm',
-      'change': '+1.5 cm',
-      'isPositiveChange': true,
-    },
-    {
-      'bodyPart': 'Arms',
-      'measurement': '35.8',
-      'unit': 'cm',
-      'change': '+0.8 cm',
-      'isPositiveChange': true,
-    },
-    {
-      'bodyPart': 'Thighs',
-      'measurement': '58.3',
-      'unit': 'cm',
-      'change': '-1.2 cm',
-      'isPositiveChange': true,
-    },
-  ];
+  // ── Nutrition (derived from active plan) ──────────────────────────────────
+  List<Map<String, dynamic>> _nutritionData = [];
+  int _dailyCaloriesFromPlan = 0;
+  bool _loadingNutrition = true;
 
-  final List<Map<String, dynamic>> _achievementData = [
-    {
-      'title': 'First Week',
-      'description': 'Complete your first week',
-      'iconName': 'star',
-      'isUnlocked': true,
-    },
-    {
-      'title': '5kg Lost',
-      'description': 'Lost 5 kilograms',
-      'iconName': 'trending_down',
-      'isUnlocked': true,
-    },
-    {
-      'title': 'Consistent',
-      'description': '30 days streak',
-      'iconName': 'local_fire_department',
-      'isUnlocked': false,
-    },
-    {
-      'title': 'Goal Reached',
-      'description': 'Reached target weight',
-      'iconName': 'emoji_events',
-      'isUnlocked': false,
-    },
+  // ── Activity (from clients/{uid}.dailyStats) ───────────────────────────────
+  int _todaySteps = 0;
+  double _todayDistanceKm = 0.0;
+  int _todayCaloriesBurned = 0;
+  int _todayActiveMinutes = 0;
+  List<Map<String, dynamic>> _weeklyStepData = [];
+  bool _loadingActivity = true;
+
+  // ── Achievements (computed from real data) ─────────────────────────────────
+  List<Map<String, dynamic>> _achievementData = [
+    {'title': 'First Week', 'description': 'Complete your first week', 'iconName': 'star', 'isUnlocked': false},
+    {'title': '5kg Lost', 'description': 'Lost 5 kilograms', 'iconName': 'trending_down', 'isUnlocked': false},
+    {'title': 'Consistent', 'description': '4+ check-ins (≈30 days)', 'iconName': 'local_fire_department', 'isUnlocked': false},
+    {'title': 'Goal Reached', 'description': 'Reached target weight', 'iconName': 'emoji_events', 'isUnlocked': false},
   ];
+  double _goalWeightKg = 0.0;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     _loadWeightData();
+    _loadMeasurements();
+    _loadActivityStats();
+    _loadNutritionFromPlan();
   }
 
   Future<void> _loadWeightData() async {
@@ -189,11 +153,199 @@ class _ProgressTrackingState extends State<ProgressTracking>
           _weightChange = change;
           _loadingWeight = false;
         });
+        // Recompute achievements now that we have weight data
+        _computeAchievements(
+          checkinCount: entries.length,
+          weightChange: change,
+          goalWeightKg: _goalWeightKg,
+          currentWeight: lastWeight,
+        );
       }
     } catch (e) {
       debugPrint('_loadWeightData error: $e');
       if (mounted) setState(() => _loadingWeight = false);
     }
+  }
+
+  // ── Load Measurements ─────────────────────────────────────────────────────
+  Future<void> _loadMeasurements() async {
+    final uid = FirebaseService.instance.currentUser?.uid;
+    if (uid == null) {
+      if (mounted) setState(() => _loadingMeasurements = false);
+      return;
+    }
+    try {
+      final snap = await FirebaseService.instance.clients
+          .doc(uid)
+          .collection('measurements')
+          .orderBy('recordedAt', descending: true)
+          .limit(1)
+          .get();
+
+      if (snap.docs.isEmpty) {
+        if (mounted) setState(() => _loadingMeasurements = false);
+        return;
+      }
+      final data = snap.docs.first.data();
+      final parts = ['waist', 'chest', 'arms', 'thighs'];
+      final List<Map<String, dynamic>> loaded = [];
+      for (final part in parts) {
+        final val = (data[part] as num?)?.toDouble();
+        if (val != null && val > 0) {
+          loaded.add({
+            'bodyPart': part[0].toUpperCase() + part.substring(1),
+            'measurement': val.toStringAsFixed(1),
+            'unit': 'cm',
+            'change': '',
+            'isPositiveChange': true,
+          });
+        }
+      }
+      if (mounted) setState(() { _measurementData = loaded; _loadingMeasurements = false; });
+    } catch (e) {
+      debugPrint('_loadMeasurements error: $e');
+      if (mounted) setState(() => _loadingMeasurements = false);
+    }
+  }
+
+  // ── Load Activity Stats ───────────────────────────────────────────────────
+  Future<void> _loadActivityStats() async {
+    final uid = FirebaseService.instance.currentUser?.uid;
+    if (uid == null) {
+      if (mounted) setState(() => _loadingActivity = false);
+      return;
+    }
+    try {
+      final snap = await FirebaseService.instance.clients.doc(uid).get();
+      final dailyStats = snap.data()?['dailyStats'] as Map<String, dynamic>? ?? {};
+      final weeklyData = <Map<String, dynamic>>[];
+      final dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+      for (int i = 6; i >= 0; i--) {
+        final day = DateTime.now().subtract(Duration(days: i));
+        final key = day.toIso8601String().substring(0, 10);
+        final dayData = dailyStats[key] as Map<String, dynamic>?;
+        final steps = (dayData?['stepCount'] as num?)?.toInt() ?? 0;
+        weeklyData.add({'label': dayLabels[day.weekday - 1], 'value': steps});
+      }
+
+      final todayKey = DateTime.now().toIso8601String().substring(0, 10);
+      final todayData = dailyStats[todayKey] as Map<String, dynamic>?;
+      final steps = (todayData?['stepCount'] as num?)?.toInt() ?? 0;
+      final activeMin = (todayData?['activeMinutes'] as num?)?.toInt() ?? (steps ~/ 120);
+
+      if (mounted) {
+        setState(() {
+          _todaySteps = steps;
+          _todayDistanceKm = double.parse((steps * 0.000762).toStringAsFixed(2));
+          _todayCaloriesBurned = (steps * 0.04).round();
+          _todayActiveMinutes = activeMin;
+          _weeklyStepData = weeklyData;
+          _loadingActivity = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('_loadActivityStats error: $e');
+      if (mounted) setState(() => _loadingActivity = false);
+    }
+  }
+
+  // ── Load Nutrition from Active Plan ───────────────────────────────────────
+  Future<void> _loadNutritionFromPlan() async {
+    final uid = FirebaseService.instance.currentUser?.uid;
+    if (uid == null) {
+      if (mounted) setState(() => _loadingNutrition = false);
+      return;
+    }
+    try {
+      final snap = await FirebaseService.instance.plans
+          .where('clientId', isEqualTo: uid)
+          .where('format', isEqualTo: 'structured')
+          .orderBy('uploadedAt', descending: true)
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) {
+        if (mounted) setState(() => _loadingNutrition = false);
+        return;
+      }
+      final plan = snap.docs.first.data();
+      final days = (plan['weekPlan'] as List?) ?? [];
+      final dayIdx = DateTime.now().weekday - 1;
+      if (dayIdx >= days.length) {
+        if (mounted) setState(() => _loadingNutrition = false);
+        return;
+      }
+      final dayData = days[dayIdx] as Map<String, dynamic>;
+      // Sum total calories for the day across all meal slots
+      int totalCal = 0;
+      for (final key in ['breakfast', 'midMorning', 'lunch', 'eveningSnack', 'dinner']) {
+        final items = (dayData[key] as List?) ?? [];
+        for (final item in items) {
+          totalCal += ((item as Map<String, dynamic>)['calories'] as num?)?.toInt() ?? 0;
+        }
+      }
+      // Approximate macro split (standard balanced diet percentages as fallback)
+      // If plan contains explicit macros, use those instead
+      final macros = plan['macros'] as Map<String, dynamic>?;
+      final int protein = macros != null ? (macros['proteinPct'] as num?)?.toInt() ?? 25 : 25;
+      final int carbs   = macros != null ? (macros['carbPct'] as num?)?.toInt() ?? 50 : 50;
+      final int fats    = macros != null ? (macros['fatPct'] as num?)?.toInt() ?? 20 : 20;
+      final int fiber   = 100 - protein - carbs - fats;
+
+      if (mounted) {
+        setState(() {
+          _dailyCaloriesFromPlan = totalCal;
+          _nutritionData = [
+            {'label': 'Protein', 'value': protein, 'percentage': protein},
+            {'label': 'Carbs',   'value': carbs,   'percentage': carbs},
+            {'label': 'Fats',    'value': fats,    'percentage': fats},
+            {'label': 'Fiber',   'value': fiber.clamp(0, 100), 'percentage': fiber.clamp(0, 100)},
+          ];
+          _loadingNutrition = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('_loadNutritionFromPlan error: $e');
+      if (mounted) setState(() => _loadingNutrition = false);
+    }
+  }
+
+  // ── Compute Achievements ──────────────────────────────────────────────────
+  void _computeAchievements({
+    required int checkinCount,
+    required double weightChange,
+    required double goalWeightKg,
+    required double currentWeight,
+  }) {
+    if (!mounted) return;
+    setState(() {
+      _achievementData = [
+        {
+          'title': 'First Week',
+          'description': 'Complete your first check-in',
+          'iconName': 'star',
+          'isUnlocked': checkinCount >= 1,
+        },
+        {
+          'title': '5kg Lost',
+          'description': 'Lost 5 kilograms',
+          'iconName': 'trending_down',
+          'isUnlocked': weightChange <= -5.0,
+        },
+        {
+          'title': 'Consistent',
+          'description': '4+ check-ins (≈30 days)',
+          'iconName': 'local_fire_department',
+          'isUnlocked': checkinCount >= 4,
+        },
+        {
+          'title': 'Goal Reached',
+          'description': 'Reached target weight',
+          'iconName': 'emoji_events',
+          'isUnlocked': goalWeightKg > 0 && currentWeight > 0 && currentWeight <= goalWeightKg,
+        },
+      ];
+    });
   }
 
   @override
@@ -367,26 +519,53 @@ class _ProgressTrackingState extends State<ProgressTracking>
   }
 
   Widget _buildMeasurementsView() {
+    if (_loadingMeasurements) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_measurementData.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(8.w),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.straighten_rounded, size: 48,
+                  color: AppTheme.lightTheme.colorScheme.onSurfaceVariant),
+              SizedBox(height: 2.h),
+              Text('No measurements yet',
+                  style: AppTheme.lightTheme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+              SizedBox(height: 1.h),
+              Text('Log your body measurements to start tracking changes.',
+                  textAlign: TextAlign.center,
+                  style: AppTheme.lightTheme.textTheme.bodySmall?.copyWith(
+                      color: AppTheme.lightTheme.colorScheme.onSurfaceVariant)),
+              SizedBox(height: 2.h),
+              ElevatedButton(
+                onPressed: () => _showQuickEntryBottomSheet('measurement'),
+                child: const Text('Log Measurements'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    final waist = _measurementData.firstWhere(
+        (m) => m['bodyPart'] == 'Waist', orElse: () => {});
     return SingleChildScrollView(
       padding: EdgeInsets.all(4.w),
       child: Column(
         children: [
           StatsCardWidget(
             title: 'Waist Measurement',
-            value: '82.5',
+            value: waist.isNotEmpty ? waist['measurement'] as String : '—',
             unit: 'cm',
-            trend: '-2.3 cm',
-            isPositiveTrend: true,
-          ),
-          SizedBox(height: 2.h),
-          TimePeriodSelectorWidget(
-            periods: ['1W', '1M', '3M', '1Y'],
-            selectedPeriod: _selectedPeriod,
-            onPeriodSelected: (period) {
-              setState(() {
-                _selectedPeriod = period;
-              });
-            },
+            trend: waist.isNotEmpty && (waist['change'] as String).isNotEmpty
+                ? waist['change'] as String
+                : 'First entry',
+            isPositiveTrend: waist.isNotEmpty
+                ? waist['isPositiveChange'] as bool
+                : true,
           ),
           SizedBox(height: 2.h),
           ..._measurementData.map((measurement) {
@@ -396,35 +575,62 @@ class _ProgressTrackingState extends State<ProgressTracking>
               unit: measurement['unit'] as String,
               change: measurement['change'] as String,
               isPositiveChange: measurement['isPositiveChange'] as bool,
-              onTap: () => _editMeasurement(measurement['bodyPart'] as String),
+              onTap: () => _showQuickEntryBottomSheet('measurement'),
             );
           }).toList(),
+          SizedBox(height: 2.h),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _showQuickEntryBottomSheet('measurement'),
+              icon: const Icon(Icons.add),
+              label: const Text('Update Measurements'),
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildNutritionView() {
+    if (_loadingNutrition) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_nutritionData.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(8.w),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.pie_chart_outline_rounded, size: 48,
+                  color: AppTheme.lightTheme.colorScheme.onSurfaceVariant),
+              SizedBox(height: 2.h),
+              Text('No active diet plan',
+                  style: AppTheme.lightTheme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+              SizedBox(height: 1.h),
+              Text('Nutrition data is derived from your assigned diet plan.',
+                  textAlign: TextAlign.center,
+                  style: AppTheme.lightTheme.textTheme.bodySmall?.copyWith(
+                      color: AppTheme.lightTheme.colorScheme.onSurfaceVariant)),
+            ],
+          ),
+        ),
+      );
+    }
     return SingleChildScrollView(
       padding: EdgeInsets.all(4.w),
       child: Column(
         children: [
           StatsCardWidget(
-            title: 'Daily Calories',
-            value: '1,850',
+            title: 'Daily Calories (Plan)',
+            value: _dailyCaloriesFromPlan > 0
+                ? _dailyCaloriesFromPlan.toString()
+                : '—',
             unit: 'kcal',
-            trend: '-150 kcal',
+            trend: 'From today\'s plan',
             isPositiveTrend: true,
-          ),
-          SizedBox(height: 2.h),
-          TimePeriodSelectorWidget(
-            periods: ['1W', '1M', '3M', '1Y'],
-            selectedPeriod: _selectedPeriod,
-            onPeriodSelected: (period) {
-              setState(() {
-                _selectedPeriod = period;
-              });
-            },
           ),
           SizedBox(height: 2.h),
           ProgressChartWidget(
@@ -441,40 +647,27 @@ class _ProgressTrackingState extends State<ProgressTracking>
   }
 
   Widget _buildActivityView() {
+    if (_loadingActivity) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return SingleChildScrollView(
       padding: EdgeInsets.all(4.w),
       child: Column(
         children: [
           StatsCardWidget(
-            title: 'Daily Steps',
-            value: '8,542',
+            title: 'Today\'s Steps',
+            value: _todaySteps > 0 ? _todaySteps.toString() : '0',
             unit: 'steps',
-            trend: '+1,200',
-            isPositiveTrend: true,
-          ),
-          SizedBox(height: 2.h),
-          TimePeriodSelectorWidget(
-            periods: ['1W', '1M', '3M', '1Y'],
-            selectedPeriod: _selectedPeriod,
-            onPeriodSelected: (period) {
-              setState(() {
-                _selectedPeriod = period;
-              });
-            },
+            trend: '${_todayDistanceKm.toStringAsFixed(2)} km walked',
+            isPositiveTrend: _todaySteps > 0,
           ),
           SizedBox(height: 2.h),
           _buildActivityCards(),
           SizedBox(height: 2.h),
           ProgressChartWidget(
-            chartData: [
-              {'label': 'Mon', 'value': 7500},
-              {'label': 'Tue', 'value': 8200},
-              {'label': 'Wed', 'value': 6800},
-              {'label': 'Thu', 'value': 9100},
-              {'label': 'Fri', 'value': 8500},
-              {'label': 'Sat', 'value': 10200},
-              {'label': 'Sun', 'value': 7800},
-            ],
+            chartData: _weeklyStepData.isNotEmpty
+                ? _weeklyStepData
+                : List.generate(7, (i) => {'label': 'Day ${i + 1}', 'value': 0}),
             chartType: 'line',
             yAxisLabel: 'Weekly Steps',
             primaryColor: AppTheme.warningLight,
@@ -583,21 +776,21 @@ class _ProgressTrackingState extends State<ProgressTracking>
     final activityData = [
       {
         'title': 'Calories Burned',
-        'value': '420',
+        'value': _todayCaloriesBurned.toString(),
         'unit': 'kcal',
         'icon': 'local_fire_department',
         'color': AppTheme.errorLight,
       },
       {
         'title': 'Active Minutes',
-        'value': '45',
+        'value': _todayActiveMinutes.toString(),
         'unit': 'min',
         'icon': 'timer',
         'color': AppTheme.warningLight,
       },
       {
         'title': 'Distance',
-        'value': '6.2',
+        'value': _todayDistanceKm.toStringAsFixed(2),
         'unit': 'km',
         'icon': 'directions_walk',
         'color': AppTheme.successLight,
@@ -852,18 +1045,77 @@ class _ProgressTrackingState extends State<ProgressTracking>
     );
   }
 
-  void _saveEntryData(Map<String, dynamic> data) {
-    // Implement data saving logic
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${data['type']} entry saved successfully!'),
-        backgroundColor: AppTheme.successLight,
-      ),
-    );
+  Future<void> _saveEntryData(Map<String, dynamic> data) async {
+    final uid = FirebaseService.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final type = data['type'] as String;
+      if (type == 'measurement') {
+        // Save to measurements subcollection
+        await FirebaseService.instance.clients
+            .doc(uid)
+            .collection('measurements')
+            .add({
+          'waist':  (data['waist']  as num?)?.toDouble() ?? 0,
+          'chest':  (data['chest']  as num?)?.toDouble() ?? 0,
+          'arms':   (data['arms']   as num?)?.toDouble() ?? 0,
+          'thighs': (data['thighs'] as num?)?.toDouble() ?? 0,
+          'unit': 'cm',
+          'recordedAt': FieldValue.serverTimestamp(),
+        });
+        await _loadMeasurements(); // Refresh UI
+      } else if (type == 'activity') {
+        // Persist manual activity entry to dailyStats
+        final todayKey = DateTime.now().toIso8601String().substring(0, 10);
+        final steps = (data['steps'] as num?)?.toInt() ?? 0;
+        final calories = (data['calories'] as num?)?.toInt() ?? 0;
+        final duration = (data['duration'] as num?)?.toInt() ?? 0;
+        await FirebaseService.instance.clients.doc(uid).set({
+          'dailyStats': {
+            todayKey: {
+              if (steps > 0) 'stepCount': steps,
+              if (calories > 0) 'caloriesBurned': calories,
+              if (duration > 0) 'activeMinutes': duration,
+            },
+          },
+        }, SetOptions(merge: true));
+        await _loadActivityStats(); // Refresh UI
+      } else if (type == 'weight') {
+        // Weight entries go to weightHistory subcollection
+        final kg = (data['weight'] as num?)?.toDouble() ?? 0;
+        if (kg > 0) {
+          await FirebaseService.instance.clients
+              .doc(uid)
+              .collection('weightHistory')
+              .add({'weightKg': kg, 'recordedAt': FieldValue.serverTimestamp()});
+          await FirebaseService.instance.clients
+              .doc(uid)
+              .set({'weightKg': kg}, SetOptions(merge: true));
+          await _loadWeightData(); // Refresh chart
+        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$type entry saved!'),
+            backgroundColor: AppTheme.successLight,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('_saveEntryData error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save entry. Please try again.'),
+            backgroundColor: AppTheme.errorLight,
+          ),
+        );
+      }
+    }
   }
 
   void _addProgressPhoto() {
-    // Implement photo capture/selection
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Photo capture feature coming soon!'),
@@ -873,13 +1125,7 @@ class _ProgressTrackingState extends State<ProgressTracking>
   }
 
   void _editMeasurement(String bodyPart) {
-    // Implement measurement editing
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Edit $bodyPart measurement'),
-        backgroundColor: AppTheme.primaryLight,
-      ),
-    );
+    _showQuickEntryBottomSheet('measurement');
   }
 
   void _showAchievementDetails(Map<String, dynamic> achievement) {

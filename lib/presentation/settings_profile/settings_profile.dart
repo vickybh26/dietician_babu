@@ -109,6 +109,11 @@ class _SettingsProfileState extends State<SettingsProfile> {
         // ─── Total check-ins ──────────────────────────────────────────────
         final totalCheckIns = checkInsSnap.docs.length;
 
+        // ─── Load persisted preferences ────────────────────────────────────
+        final prefs = userSnap.data()?['preferences'] as Map<String, dynamic>?;
+        final savedNotifs = prefs?['notifications'] as Map<String, dynamic>?;
+        final savedOfflineSync = prefs?['offlineSync'] as bool?;
+
         setState(() {
           _userName = name;
           _userEmail = email;
@@ -118,6 +123,14 @@ class _SettingsProfileState extends State<SettingsProfile> {
           _weightLost = weightLost;
           _totalCheckIns = totalCheckIns;
           _isLoading = false;
+          if (savedOfflineSync != null) offlineSyncEnabled = savedOfflineSync;
+          if (savedNotifs != null) {
+            savedNotifs.forEach((k, v) {
+              if (notificationSettings.containsKey(k) && v is bool) {
+                notificationSettings[k] = v;
+              }
+            });
+          }
         });
       }
     } catch (e) {
@@ -660,6 +673,15 @@ class _SettingsProfileState extends State<SettingsProfile> {
                       setState(() {
                         notificationSettings[key] = value;
                       });
+                      // Persist to Firestore
+                      final uid = FirebaseService.instance.currentUser?.uid;
+                      if (uid != null) {
+                        FirebaseService.instance.users.doc(uid).set({
+                          'preferences': {'notifications': {key: value}},
+                        }, SetOptions(merge: true)).catchError((e) {
+                          debugPrint('Failed to save notification pref: $e');
+                        });
+                      }
                     },
                   ),
                 ),
@@ -790,9 +812,16 @@ class _SettingsProfileState extends State<SettingsProfile> {
   }
 
   void _toggleOfflineSync(bool value) {
-    setState(() {
-      offlineSyncEnabled = value;
-    });
+    setState(() => offlineSyncEnabled = value);
+    // Persist to Firestore
+    final uid = FirebaseService.instance.currentUser?.uid;
+    if (uid != null) {
+      FirebaseService.instance.users.doc(uid).set({
+        'preferences': {'offlineSync': value},
+      }, SetOptions(merge: true)).catchError((e) {
+        debugPrint('Failed to save offline sync pref: $e');
+      });
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

@@ -1,14 +1,45 @@
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sizer/sizer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class LandingScreen extends StatelessWidget {
+import '../../services/firebase_service.dart';
+
+class LandingScreen extends StatefulWidget {
   const LandingScreen({super.key});
 
+  @override
+  State<LandingScreen> createState() => _LandingScreenState();
+}
+
+class _LandingScreenState extends State<LandingScreen> {
   // ── Update these with Dietician Babu's actual contact details ────────────
   static const String _whatsappNumber = '918871448064'; // without +
   static const String _callNumber = '+918871448064';
+
+  String _clientCount = '500+';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClientCount();
+  }
+
+  Future<void> _loadClientCount() async {
+    try {
+      final snap = await FirebaseService.instance.clients.count().get();
+      final count = snap.count ?? 0;
+      if (mounted) {
+        setState(() {
+          _clientCount = count > 0 ? '${count}+' : '500+';
+        });
+      }
+    } catch (e) {
+      debugPrint('Landing count error: $e');
+      // Keep default '500+' on error
+    }
+  }
 
   Future<void> _openWhatsApp(BuildContext context) async {
     final uri = Uri.parse(
@@ -242,7 +273,7 @@ class LandingScreen extends StatelessWidget {
           SizedBox(height: 2.5.h),
           Row(
             children: [
-              _statBubble('500+', 'Clients\nHelped', const Color(0xFF1976D2)),
+              _statBubble(_clientCount, 'Clients\nHelped', const Color(0xFF1976D2)),
               SizedBox(width: 2.w),
               _statBubble('7+', 'Years\nExp.', const Color(0xFF43A047)),
               SizedBox(width: 2.w),

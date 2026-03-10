@@ -117,7 +117,15 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _navigateToNextScreen() async {
     if (!mounted) return;
     final fs = FirebaseService.instance;
-    final user = fs.currentUser;
+
+    // ✅ FIX: Await the first auth state event from Firebase instead of reading
+    // `currentUser` synchronously. On cold start Firebase may still be
+    // resolving the cached token, so `currentUser` can return null even when
+    // the user IS logged in, causing a spurious sign-out. `authStateChanges().first`
+    // properly waits for Firebase to confirm the auth state.
+    final user = await fs.auth.authStateChanges().first;
+
+    if (!mounted) return;
 
     // Not logged in → Landing screen (public marketing page)
     if (user == null) {

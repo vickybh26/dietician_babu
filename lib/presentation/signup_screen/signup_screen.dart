@@ -48,10 +48,16 @@ class _SignupScreenState extends State<SignupScreen> {
       // Set display name so upsertUser picks it up correctly
       await cred.user!.updateDisplayName(_nameCtrl.text.trim());
 
+      // ✅ FIX: Reload the user to pick up the updated displayName before
+      // saving to Firestore. Without this, upsertUser sees the stale user
+      // object where displayName is still null, causing the name to not save.
+      await cred.user!.reload();
+      final refreshedUser = FirebaseService.instance.auth.currentUser!;
+
       // Sync to Firestore via the canonical upsertUser helper.
       // Also write phone (not covered by upsertUser) and mark onboarding pending.
-      await FirebaseService.instance.upsertUser(cred.user!);
-      await FirebaseService.instance.users.doc(cred.user!.uid).update({
+      await FirebaseService.instance.upsertUser(refreshedUser);
+      await FirebaseService.instance.users.doc(refreshedUser.uid).update({
         'phone': _phoneCtrl.text.trim(),
         'onboardingComplete': false,
       });
