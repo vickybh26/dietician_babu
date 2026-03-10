@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../services/client_management_service.dart';
+import '../../services/firebase_service.dart'; // Added missing import
 import '../admin_dashboard_overview/widgets/admin_scaffold.dart';
 import 'widgets/pending_approvals_tab_widget.dart';
 import 'widgets/active_clients_tab_widget.dart';
@@ -109,7 +110,7 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
                       ActiveClientsTabWidget(
                         clients: _activeClients,
                         searchQuery: _searchQuery,
-                        clientNudges: _clientNudges, // Pass nudges here
+                        clientNudges: _clientNudges,
                         onViewDetails: _showClientDetails,
                         onUpdateStatus: _updateClientStatus,
                         onSendMessage: _sendMessage,

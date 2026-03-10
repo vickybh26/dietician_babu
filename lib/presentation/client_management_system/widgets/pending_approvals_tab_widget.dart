@@ -27,363 +27,164 @@ class PendingApprovalsTabWidget extends StatelessWidget {
       return _buildEmptyState();
     }
 
+    // Optimization: Use a GridView on larger screens (Web)
+    final bool isWide = MediaQuery.of(context).size.width > 900;
+
     return Column(
       children: [
-        // Bulk Actions Bar
         if (selectedClients.isNotEmpty) _buildBulkActionsBar(),
         
-        // Client Cards
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: clients.length,
-            itemBuilder: (context, index) {
-              final client = clients[index];
-              final isSelected = selectedClients.contains(client['id']);
-              
-              return Card(
-                margin: const EdgeInsets.only(bottom: 16),
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(
-                    color: isSelected 
-                        ? const Color(0xFF1976D2) 
-                        : Colors.transparent,
-                    width: 2,
+          child: isWide 
+            ? GridView.builder(
+                padding: const EdgeInsets.all(24),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 2.5,
+                  crossAxisSpacing: 20,
+                  mainAxisSpacing: 20,
+                ),
+                itemCount: clients.length,
+                itemBuilder: (context, index) => _buildClientCard(context, clients[index]),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: clients.length,
+                itemBuilder: (context, index) => _buildClientCard(context, clients[index]),
+              ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildClientCard(BuildContext context, Map<String, dynamic> client) {
+    // FIX: Using 'name' instead of 'full_name' to prevent "Unknown"
+    final String clientName = client['name'] ?? client['full_name'] ?? 'New User';
+    final String clientId = client['uid'] ?? client['id'] ?? '';
+    final bool isSelected = selectedClients.contains(clientId);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: isSelected ? const Color(0xFF1976D2) : Colors.grey.shade200,
+          width: isSelected ? 2 : 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Checkbox(
+                  value: isSelected,
+                  onChanged: (value) => onClientSelected(clientId, value ?? false),
+                  activeColor: const Color(0xFF1976D2),
+                ),
+                const SizedBox(width: 8),
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: const Color(0xFF1976D2).withOpacity(0.1),
+                  child: Text(
+                    _getInitials(clientName),
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1976D2), fontSize: 12),
                   ),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
+                const SizedBox(width: 12),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header with selection checkbox and client info
-                      Row(
-                        children: [
-                          Checkbox(
-                            value: isSelected,
-                            onChanged: (value) => onClientSelected(
-                              client['id'],
-                              value ?? false,
-                            ),
-                            activeColor: const Color(0xFF1976D2),
-                          ),
-                          const SizedBox(width: 12),
-                          CircleAvatar(
-                            radius: 25,
-                            backgroundColor: const Color(0xFF1976D2).withOpacity(0.1),
-                            child: Text(
-                              _getInitials(client['full_name'] ?? 'Unknown'),
-                              style: GoogleFonts.inter(
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFF1976D2),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  client['full_name'] ?? 'Unknown',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey[800],
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  client['email'] ?? '',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                if (client['phone'] != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    client['phone'],
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                          // Registration date
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'Applied ${_formatDate(client['created_at'])}',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.orange[700],
-                              ),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        clientName,
+                        style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      
-                      const SizedBox(height: 16),
-                      
-                      // Client Information Row
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildInfoItem(
-                              'Age',
-                              _calculateAge(client['date_of_birth']),
-                              Icons.cake,
-                            ),
-                          ),
-                          Expanded(
-                            child: _buildInfoItem(
-                              'Plan',
-                              _getSubscriptionPlan(client['subscriptions']),
-                              Icons.restaurant_menu,
-                            ),
-                          ),
-                          Expanded(
-                            child: _buildInfoItem(
-                              'Monthly Fee',
-                              _getMonthlyFee(client['subscriptions']),
-                              Icons.payment,
-                            ),
-                          ),
-                        ],
-                      ),
-                      
-                      const SizedBox(height: 20),
-                      
-                      // Action Buttons
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () => onApproveClient(client['id']),
-                              icon: const Icon(Icons.check_circle),
-                              label: const Text('Approve'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF2E7D32),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => onRejectClient(client['id']),
-                              icon: const Icon(Icons.cancel),
-                              label: const Text('Reject'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.red,
-                                side: const BorderSide(color: Colors.red),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          IconButton(
-                            onPressed: () => onViewDetails(client['id']),
-                            icon: const Icon(Icons.visibility),
-                            tooltip: 'View Details',
-                            style: IconButton.styleFrom(
-                              backgroundColor: Colors.grey[100],
-                              foregroundColor: Colors.grey[700],
-                            ),
-                          ),
-                        ],
+                      Text(
+                        client['email'] ?? 'No email',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
-              );
-            },
-          ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                  child: const Text('Pending', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange)),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            Row(
+              children: [
+                _buildCompactInfo('Plan', client['subscriptionPlan'] ?? 'None', Icons.restaurant_menu),
+                _buildCompactInfo('Goal', client['goal'] ?? 'N/A', Icons.track_changes),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => onViewDetails(clientId),
+                  child: const Text('Details'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () => onApproveClient(clientId),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, elevation: 0),
+                  child: const Text('Approve'),
+                ),
+              ],
+            ),
+          ],
         ),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildCompactInfo(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          Row(
+            children: [
+              Icon(icon, size: 12, color: Colors.grey[600]),
+              const SizedBox(width: 4),
+              Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildBulkActionsBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1976D2).withOpacity(0.1),
-        border: const Border(
-          bottom: BorderSide(color: Colors.grey, width: 0.2),
-        ),
-      ),
+      color: const Color(0xFF1976D2).withOpacity(0.05),
       child: Row(
         children: [
-          Text(
-            '${selectedClients.length} client(s) selected',
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF1976D2),
-            ),
-          ),
+          Text('${selectedClients.length} selected', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1976D2))),
           const Spacer(),
-          ElevatedButton.icon(
+          ElevatedButton(
             onPressed: onBulkApprove,
-            icon: const Icon(Icons.check_circle),
-            label: const Text('Approve Selected'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2E7D32),
-              foregroundColor: Colors.white,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Approve Selected'),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildInfoItem(String label, String value, IconData icon) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Icon(icon, size: 16, color: Colors.grey[600]),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: Colors.grey[500],
-                ),
-              ),
-              Text(
-                value,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[800],
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
   Widget _buildEmptyState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.check_circle_outline,
-            size: 64,
-            color: Colors.grey,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'No Pending Approvals',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'All client applications have been processed',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
-            ),
-          ),
-        ],
-      ),
-    );
+    return const Center(child: Text('No pending approvals'));
   }
 
   String _getInitials(String name) {
-    return name
-        .split(' ')
-        .map((word) => word.isNotEmpty ? word[0].toUpperCase() : '')
-        .take(2)
-        .join('');
-  }
-
-  String _formatDate(String? dateString) {
-    if (dateString == null) return 'Unknown';
-    try {
-      final date = DateTime.parse(dateString);
-      final now = DateTime.now();
-      final difference = now.difference(date);
-      
-      if (difference.inDays == 0) {
-        return 'Today';
-      } else if (difference.inDays == 1) {
-        return 'Yesterday';
-      } else if (difference.inDays < 7) {
-        return '${difference.inDays} days ago';
-      } else {
-        return '${date.day}/${date.month}/${date.year}';
-      }
-    } catch (e) {
-      return 'Unknown';
-    }
-  }
-
-  String _calculateAge(String? dobString) {
-    if (dobString == null) return 'N/A';
-    try {
-      final dob = DateTime.parse(dobString);
-      final now = DateTime.now();
-      final age = now.year - dob.year;
-      return '$age years';
-    } catch (e) {
-      return 'N/A';
-    }
-  }
-
-  String _getSubscriptionPlan(List? subscriptions) {
-    if (subscriptions == null || subscriptions.isEmpty) {
-      return 'No Plan';
-    }
-    final subscription = subscriptions.first;
-    final dietPlan = subscription['diet_plans'];
-    return dietPlan?['title'] ?? 'Custom Plan';
-  }
-
-  String _getMonthlyFee(List? subscriptions) {
-    if (subscriptions == null || subscriptions.isEmpty) {
-      return '₹0';
-    }
-    final subscription = subscriptions.first;
-    final fee = subscription['monthly_fee'];
-    return fee != null ? '₹${fee.toString()}' : '₹0';
+    if (name.isEmpty) return 'U';
+    return name.trim().split(' ').map((word) => word.isNotEmpty ? word[0].toUpperCase() : '').take(2).join('');
   }
 }
