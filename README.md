@@ -2,120 +2,122 @@
 
 A comprehensive Flutter-based health and nutrition management platform. It features a dual-interface system catering to both clients (diet plans, progress tracking, health onboarding) and administrators (client management, diet plan creation, sales analytics).
 
+---
+
 ## 📋 Prerequisites
 
-- Flutter SDK (^3.6.0)
-- Dart SDK
-- Android Studio / VS Code with Flutter extensions
-- Android SDK / Xcode (for iOS development)
+- **Flutter SDK** (^3.6.0)
+- **Dart SDK**
+- **Firebase Account** (Firestore, Auth, Storage)
+- **Gemini API Key** (for AI diet plan generation)
 
-## 🛠️ Installation
+## 🛠️ Installation & Setup
 
-1. Install dependencies:
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/vickybh26/dietician_babu.git
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   flutter pub get
+   ```
+
+3. **Firebase Configuration:**
+   - Place `google-services.json` in `android/app/`.
+   - Place `GoogleService-Info.plist` in `ios/Runner/`.
+   - *Note: These files are gitignored for security.*
+
+4. **Environment Variables:**
+   Create an `env.json` in the root folder with your Gemini API key:
+   ```json
+   {
+     "GEMINI_API_KEY": "your_key_here"
+   }
+   ```
+
+---
+
+## 🚀 Running the App
+
+The app uses `--dart-define-from-file` to inject secrets.
+
+**CLI:**
 ```bash
-flutter pub get
+flutter run --dart-define-from-file=env.json
 ```
 
-2. Run the application:
+**VS Code (`launch.json`):**
+```json
+{
+    "args": ["--dart-define-from-file", "env.json"]
+}
+```
 
-To run the app with environment variables defined in an env.json file, follow the steps mentioned below:
-1. Through CLI
-    ```bash
-    flutter run --dart-define-from-file=env.json
-    ```
-2. For VSCode
-    - Open .vscode/launch.json (create it if it doesn't exist).
-    - Add or modify your launch configuration to include --dart-define-from-file:
-    ```json
-    {
-        "version": "0.2.0",
-        "configurations": [
-            {
-                "name": "Launch",
-                "request": "launch",
-                "type": "dart",
-                "program": "lib/main.dart",
-                "args": [
-                    "--dart-define-from-file",
-                    "env.json"
-                ]
-            }
-        ]
-    }
-    ```
-3. For IntelliJ / Android Studio
-    - Go to Run > Edit Configurations.
-    - Select your Flutter configuration or create a new one.
-    - Add the following to the "Additional arguments" field:
-    ```bash
-    --dart-define-from-file=env.json
-    ```
+---
+
+## 🔍 Troubleshooting (Common Issues)
+
+### 1. Firestore "databaseId" Mismatch
+If data isn't loading, check `lib/services/firebase_service.dart`. 
+- **Fix:** Ensure `databaseId` matches your Firebase Console (usually `(default)` or `dieticianbabu`).
+
+### 2. Authentication Failures (SHA-1)
+If Google Sign-In or Phone Auth fails on Android:
+- **Fix:** Add your machine's **SHA-1** and **SHA-256** certificates to the Firebase Console.
+
+### 3. Pedometer Permissions
+On Android 10+, physical activity tracking requires **runtime permissions**.
+- **Fix:** The app uses `permission_handler` to request `ACTIVITY_RECOGNITION`. Ensure this is allowed in your phone settings.
+
+---
 
 ## 📁 Project Structure
 
 ```
 dietician_babu/
-├── android/            # Android-specific configuration
-├── ios/                # iOS-specific configuration
 ├── lib/
-│   ├── core/           # Core utilities and shared logic
-│   ├── presentation/   # UI screens and feature-specific logic
-│   ├── routes/         # Application routing
-│   ├── services/       # Firebase and other external services
-│   ├── theme/          # Theme configuration
-│   ├── widgets/        # Reusable UI components
-│   └── main.dart       # Application entry point
-├── assets/             # Static assets (images, icons, etc.)
-├── pubspec.yaml        # Project dependencies and configuration
-└── README.md           # Project documentation
+│   ├── core/           # Constants, App Themes, and Tags
+│   ├── data/           # Models and Repositories (Planned)
+│   ├── presentation/   # UI Screens (Divided into Admin/Client)
+│   ├── routes/         # Environment-aware Routing (Web vs Mobile)
+│   ├── services/       # Firebase & AI Service Logic
+│   └── main.dart       # Entry Point
+├── assets/             # Images and Branding
+└── env.json            # App Secrets (Manual Setup Required)
 ```
 
-## 🎨 Theming
+---
 
-This project includes a comprehensive theming system with both light and dark themes using a "Trusted Wellness Palette":
+## 📈 Optimization Roadmap
 
-```dart
-// Access the current theme
-ThemeData theme = Theme.of(context);
+1. **State Management:** Transition from `setState` to **Riverpod** or **Provider** for better scalability.
+2. **Background Tasks:** Integrate `workmanager` to keep the step counter active when the app is minimized.
+3. **Security:** Implement strict Firestore Security Rules to protect user health data.
+4. **Caching:** Enable offline persistence for diet plans.
 
-// Use theme colors
-Color primaryColor = theme.colorScheme.primary;
-```
+---
 
-The theme configuration includes:
-- Color schemes for light and dark modes
-- Typography styles (Inter font via Google Fonts)
-- Button themes
-- Input decoration themes
-- Card and dialog themes
+## 📦 Deployment & Versioning
 
-## 📱 Responsive Design
-
-The app is built with responsive design using the Sizer package:
-
-```dart
-// Example of responsive sizing
-Container(
-  width: 50.w, // 50% of screen width
-  height: 20.h, // 20% of screen height
-  child: Text('Responsive Container'),
-)
-```
-
-## 📦 Deployment
-
-Build the application for production:
-
+### Production Build
 ```bash
-# For Android
+# Android
 flutter build apk --release --split-per-abi --dart-define-from-file=env.json
 
-# For iOS
-flutter build ios --release --dart-define-from-file=env.json
+# Web (Admin Dashboard)
+flutter build web --dart-define-from-file=env.json
 ```
+
+### Versioning
+Current: `1.3.0+4` (Update in `pubspec.yaml`).
+- Increment the `+4` (build number) for every store upload.
+
+---
 
 ## 🙏 Acknowledgments
 - Powered by [Flutter](https://flutter.dev) & [Dart](https://dart.dev)
 - Styled with Material Design
+- AI assistance by Google Gemini
 
 Built with ❤️ for Dietician Babu
