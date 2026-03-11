@@ -6,7 +6,8 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(flutter emulators)",
       "Bash(flutter devices)",
-      "Bash(flutter run -d chrome --web-port 5000)"
+      "Bash(flutter run -d chrome --web-port 5000)",
+      "Bash(flutter doctor -v)"
     ]
   }
 }
