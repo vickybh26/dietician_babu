@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
-import 'package:sizer/sizer.dart';
 
 import '../../core/client_tags.dart';
 import '../../services/firebase_service.dart';
@@ -453,7 +452,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
   Widget _buildStepBar() {
     return Container(
       color: AppTheme.lightTheme.colorScheme.primary,
-      padding: EdgeInsets.fromLTRB(4.w, 0, 4.w, 2.h),
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Row(
         children: [
           _stepDot(1, 'Plan Setup', _step >= 0),
@@ -527,7 +526,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
     ];
 
     return SingleChildScrollView(
-      padding: EdgeInsets.all(4.w),
+      padding: EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -538,7 +537,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                 _inputDec('e.g. 7-Day Weight Loss Plan for Beginners'),
             onChanged: (v) => _planTitle = v,
           ),
-          SizedBox(height: 3.h),
+          SizedBox(height: 24),
 
           GestureDetector(
             onTap: () =>
@@ -613,11 +612,11 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
           ),
 
           if (_showClientList && _selectedClientId == null) ...[
-            SizedBox(height: 1.h),
+            SizedBox(height: 8),
             _buildClientListPanel(),
           ],
 
-          SizedBox(height: 3.h),
+          SizedBox(height: 24),
 
           _sectionHeader('Plan Tags'),
           Text(
@@ -626,7 +625,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                 : 'Select tags. They guide Gemini and help filter plans.',
             style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
-          SizedBox(height: 1.5.h),
+          SizedBox(height: 12),
 
           ...categoryOrder.map((cat) {
             final tags = byCategory[cat] ?? [];
@@ -642,7 +641,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                     letterSpacing: 0.5,
                   ),
                 ),
-                SizedBox(height: 0.8.h),
+                SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -680,12 +679,12 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                     );
                   }).toList(),
                 ),
-                SizedBox(height: 2.h),
+                SizedBox(height: 16),
               ],
             );
           }),
 
-          SizedBox(height: 2.h),
+          SizedBox(height: 16),
         ],
       ),
     );
@@ -714,7 +713,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
       );
     }
     return Container(
-      constraints: BoxConstraints(maxHeight: 30.h),
+      constraints: BoxConstraints(maxHeight: 240),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -810,13 +809,13 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
               height: 60,
               child: CircularProgressIndicator(strokeWidth: 3),
             ),
-            SizedBox(height: 3.h),
+            SizedBox(height: 24),
             Text('Gemini is creating the plan...',
                 style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 16,
                     color: Colors.grey.shade700)),
-            SizedBox(height: 1.h),
+            SizedBox(height: 8),
             Text(
               _selectedClientProfile != null
                   ? 'Personalising for client profile and tags'
@@ -830,7 +829,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
     }
 
     return SingleChildScrollView(
-      padding: EdgeInsets.all(4.w),
+      padding: EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -862,7 +861,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                 );
               }).toList(),
             ),
-            SizedBox(height: 1.5.h),
+            SizedBox(height: 12),
           ],
 
           TextField(
@@ -870,17 +869,17 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
             decoration: _inputDec('Plan Title'),
             onChanged: (v) => _planTitle = v,
           ),
-          SizedBox(height: 1.5.h),
+          SizedBox(height: 12),
           TextField(
             controller: _notesController,
             maxLines: 2,
             decoration: _inputDec('Notes for client (optional)'),
             onChanged: (v) => _planNotes = v,
           ),
-          SizedBox(height: 3.h),
+          SizedBox(height: 24),
 
           _sectionHeader('7-Day Meal Plan'),
-          SizedBox(height: 1.h),
+          SizedBox(height: 8),
 
           ...List.generate(_weekPlan.length, (i) {
             return _DayCard(
@@ -894,7 +893,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
   }
 
   Widget _sectionHeader(String title) => Padding(
-        padding: EdgeInsets.only(bottom: 1.h),
+        padding: EdgeInsets.only(bottom: 8),
         child: Text(
           title,
           style: const TextStyle(
@@ -925,7 +924,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
 
   Widget _buildSuccess() => Center(
         child: Padding(
-          padding: EdgeInsets.all(8.w),
+          padding: EdgeInsets.all(32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -938,11 +937,11 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                 child: Icon(Icons.check_circle_rounded,
                     color: Colors.green.shade500, size: 52),
               ),
-              SizedBox(height: 3.h),
+              SizedBox(height: 24),
               const Text('Plan Saved! 🎉',
                   style: TextStyle(
                       fontSize: 22, fontWeight: FontWeight.bold)),
-              SizedBox(height: 1.h),
+              SizedBox(height: 8),
               Text(
                 _selectedClientId != null
                     ? 'The diet plan has been saved and assigned to the client. They can view it in the My Diet Plan section.'
@@ -951,7 +950,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                 style:
                     TextStyle(color: Colors.grey.shade600, fontSize: 14),
               ),
-              SizedBox(height: 4.h),
+              SizedBox(height: 32),
               ElevatedButton.icon(
                 onPressed: () {
                   setState(() {
@@ -972,12 +971,12 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                       AppTheme.lightTheme.colorScheme.primary,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(
-                      horizontal: 6.w, vertical: 1.5.h),
+                      horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
               ),
-              SizedBox(height: 2.h),
+              SizedBox(height: 16),
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: Text('Back to Diet Plans',
@@ -992,7 +991,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
 
   Widget _buildBottomBar() {
     return Container(
-      padding: EdgeInsets.fromLTRB(4.w, 2.h, 4.w, 3.h),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 24),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -1021,7 +1020,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                   backgroundColor:
                       AppTheme.lightTheme.colorScheme.primary,
                   foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 1.8.h),
+                  padding: EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
                   elevation: 0,
@@ -1034,7 +1033,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                   onPressed: () => setState(() => _step = 0),
                   style: OutlinedButton.styleFrom(
                     padding: EdgeInsets.symmetric(
-                        vertical: 1.8.h, horizontal: 4.w),
+                        vertical: 14, horizontal: 16),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14)),
                     side: BorderSide(
@@ -1045,7 +1044,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                           color: AppTheme.lightTheme.colorScheme.primary,
                           fontWeight: FontWeight.w600)),
                 ),
-                SizedBox(width: 3.w),
+                SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: (_weekPlan.isNotEmpty && !_saving)
@@ -1067,7 +1066,7 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
                       backgroundColor:
                           AppTheme.lightTheme.colorScheme.primary,
                       foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 1.8.h),
+                      padding: EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14)),
                       elevation: 0,
@@ -1112,7 +1111,7 @@ class _DayCardState extends State<_DayCard> {
     };
 
     return Container(
-      margin: EdgeInsets.only(bottom: 2.h),
+      margin: EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -1129,7 +1128,7 @@ class _DayCardState extends State<_DayCard> {
             onTap: () => setState(() => _expanded = !_expanded),
             child: Container(
               padding:
-                  EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.5.h),
+                  EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: const Color(0xFF61b239),
                 borderRadius: _expanded
@@ -1141,7 +1140,7 @@ class _DayCardState extends State<_DayCard> {
                 children: [
                   const Icon(Icons.calendar_today_rounded,
                       color: Colors.white, size: 18),
-                  SizedBox(width: 2.w),
+                  SizedBox(width: 8),
                   Text(
                     plan.day,
                     style: const TextStyle(
@@ -1162,7 +1161,7 @@ class _DayCardState extends State<_DayCard> {
           ),
           if (_expanded)
             Padding(
-              padding: EdgeInsets.all(4.w),
+              padding: EdgeInsets.all(16),
               child: Column(
                 children: allMeals.entries
                     .map((entry) => _MealSection(
@@ -1195,7 +1194,7 @@ class _MealSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: EdgeInsets.only(bottom: 2.h),
+      margin: EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1207,7 +1206,7 @@ class _MealSection extends StatelessWidget {
                 decoration:
                     BoxDecoration(color: color, shape: BoxShape.circle),
               ),
-              SizedBox(width: 2.w),
+              SizedBox(width: 8),
               Text(mealName,
                   style: TextStyle(
                       fontWeight: FontWeight.w700,
@@ -1215,7 +1214,7 @@ class _MealSection extends StatelessWidget {
                       color: color)),
             ],
           ),
-          SizedBox(height: 0.8.h),
+          SizedBox(height: 8),
           ...items.map((item) => _EditableItem(
                 item: item,
                 accentColor: color,
@@ -1227,12 +1226,12 @@ class _MealSection extends StatelessWidget {
               onChanged();
             },
             child: Container(
-              padding: EdgeInsets.symmetric(vertical: 0.8.h),
+              padding: EdgeInsets.symmetric(vertical: 8),
               child: Row(
                 children: [
                   Icon(Icons.add_circle_outline_rounded,
                       size: 16, color: color.withValues(alpha: 0.6)),
-                  SizedBox(width: 1.w),
+                  SizedBox(width: 4),
                   Text('Add item',
                       style: TextStyle(
                           color: color.withValues(alpha: 0.6),
@@ -1260,8 +1259,8 @@ class _EditableItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: EdgeInsets.only(bottom: 0.8.h),
-      padding: EdgeInsets.symmetric(horizontal: 3.w, vertical: 1.h),
+      margin: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: accentColor.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(10),
@@ -1280,7 +1279,7 @@ class _EditableItem extends StatelessWidget {
               },
             ),
           ),
-          SizedBox(width: 2.w),
+          SizedBox(width: 8),
           Expanded(
             flex: 3,
             child: _inlineField(
@@ -1292,7 +1291,7 @@ class _EditableItem extends StatelessWidget {
               },
             ),
           ),
-          SizedBox(width: 2.w),
+          SizedBox(width: 8),
           Expanded(
             flex: 2,
             child: _inlineField(

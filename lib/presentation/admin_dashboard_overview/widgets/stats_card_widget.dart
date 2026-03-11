@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:sizer/sizer.dart';
 
 class StatsCardWidget extends StatelessWidget {
   final String title;
@@ -23,7 +22,7 @@ class StatsCardWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(3.w),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -42,16 +41,16 @@ class StatsCardWidget extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.all(7),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: iconColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: iconColor, size: 4.5.w),
+                child: Icon(icon, color: iconColor, size: 24),
               ),
               Flexible(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: changeColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
@@ -61,7 +60,7 @@ class StatsCardWidget extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
-                      fontSize: 8.5.sp,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: changeColor,
                     ),
@@ -70,13 +69,13 @@ class StatsCardWidget extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 16),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(
-              fontSize: 5.5.w,
+              fontSize: 28,
               fontWeight: FontWeight.bold,
               color: Colors.grey[800],
             ),
@@ -87,7 +86,7 @@ class StatsCardWidget extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(
-              fontSize: 10.sp,
+              fontSize: 14,
               color: Colors.grey[600],
             ),
           ),

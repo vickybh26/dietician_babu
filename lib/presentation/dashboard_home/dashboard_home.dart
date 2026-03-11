@@ -317,15 +317,15 @@ class _DashboardHomeState extends State<DashboardHome>
       title: Row(
         children: [
           Container(
-            width: 8.w,
-            height: 8.w,
-            margin: EdgeInsets.only(right: 3.w),
+            width: 32,
+            height: 32,
+            margin: EdgeInsets.only(right: 12),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.asset(
                 'assets/images/Logo_DB-removebg-preview-1757171544580.png',
-                width: 8.w,
-                height: 8.w,
+                width: 32,
+                height: 32,
                 fit: BoxFit.contain,
               ),
             ),
@@ -351,7 +351,7 @@ class _DashboardHomeState extends State<DashboardHome>
       ),
       actions: [
         Container(
-          margin: EdgeInsets.only(right: 4.w),
+          margin: EdgeInsets.only(right: 16),
           child: Row(
             children: [
               GestureDetector(
@@ -370,7 +370,7 @@ class _DashboardHomeState extends State<DashboardHome>
                   ),
                 ),
               ),
-              SizedBox(width: 2.w),
+              SizedBox(width: 8),
               GestureDetector(
                 onTap: _handleLogout,
                 child: Container(
@@ -405,7 +405,7 @@ class _DashboardHomeState extends State<DashboardHome>
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           children: [
-            SizedBox(height: 1.h),
+            SizedBox(height: 8),
 
             _buildQuickActions(),
 
@@ -445,7 +445,7 @@ class _DashboardHomeState extends State<DashboardHome>
               onScheduleNew: _scheduleNewConsultation,
             ),
 
-            SizedBox(height: 10.h),
+            SizedBox(height: 80),
           ],
         ),
       ),
@@ -534,7 +534,7 @@ class _DashboardHomeState extends State<DashboardHome>
         _subscriptionStatus == 'active';
 
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.h),
+      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -544,8 +544,8 @@ class _DashboardHomeState extends State<DashboardHome>
                   Navigator.pushNamed(context, '/subscription-plans'),
               child: Container(
                 width: double.infinity,
-                padding: EdgeInsets.all(3.w),
-                margin: EdgeInsets.only(bottom: 2.h),
+                padding: EdgeInsets.all(12),
+                margin: EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFFf5a40d), Color(0xFFe8960a)],
@@ -561,7 +561,7 @@ class _DashboardHomeState extends State<DashboardHome>
                 child: Row(
                   children: [
                     const Text('🌟', style: TextStyle(fontSize: 22)),
-                    SizedBox(width: 3.w),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -587,8 +587,8 @@ class _DashboardHomeState extends State<DashboardHome>
           else
             Container(
               width: double.infinity,
-              padding: EdgeInsets.all(3.w),
-              margin: EdgeInsets.only(bottom: 2.h),
+              padding: EdgeInsets.all(12),
+              margin: EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
                 color: const Color(0xFF61b239).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(14),
@@ -598,7 +598,7 @@ class _DashboardHomeState extends State<DashboardHome>
               child: Row(
                 children: [
                   const Text('✅', style: TextStyle(fontSize: 20)),
-                  SizedBox(width: 3.w),
+                  SizedBox(width: 12),
                   Text(
                     '$_subscriptionPlan Plan — Active',
                     style: const TextStyle(
@@ -616,27 +616,27 @@ class _DashboardHomeState extends State<DashboardHome>
               fontWeight: FontWeight.w700,
             ),
           ),
-          SizedBox(height: 1.5.h),
+          SizedBox(height: 12),
           Row(
             children: [
               _actionTile('📋', 'My Diet Plan', '/diet-plan-viewer',
                   const Color(0xFF61b239)),
-              SizedBox(width: 3.w),
+              SizedBox(width: 12),
               _actionTile('📝', 'Weekly\nCheck-in', '/weekly-checkin',
                   const Color(0xFF2196F3)),
             ],
           ),
-          SizedBox(height: 2.w),
+          SizedBox(height: 8),
           Row(
             children: [
               _actionTile('📈', 'My Progress', '/progress-tracking',
                   const Color(0xFF9c27b0)),
-              SizedBox(width: 3.w),
+              SizedBox(width: 12),
               _actionTile('💳', 'Subscription', '/subscription-plans',
                   const Color(0xFFf5a40d)),
             ],
           ),
-          SizedBox(height: 2.h),
+          SizedBox(height: 16),
         ],
       ),
     );
@@ -648,7 +648,7 @@ class _DashboardHomeState extends State<DashboardHome>
       child: GestureDetector(
         onTap: () => Navigator.pushNamed(context, route),
         child: Container(
-          padding: EdgeInsets.symmetric(vertical: 2.h, horizontal: 3.w),
+          padding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
           decoration: BoxDecoration(
             color: color.withOpacity(0.08),
             borderRadius: BorderRadius.circular(14),
@@ -657,7 +657,7 @@ class _DashboardHomeState extends State<DashboardHome>
           child: Row(
             children: [
               Text(emoji, style: const TextStyle(fontSize: 22)),
-              SizedBox(width: 2.w),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   label,
@@ -1025,33 +1025,33 @@ class _DashboardHomeState extends State<DashboardHome>
   // Bottom sheet builders
   Widget _buildCalorieDetailsBottomSheet() {
     return Container(
-      height: 50.h,
+      height: 400,
       decoration: BoxDecoration(
         color: AppTheme.lightTheme.colorScheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      padding: EdgeInsets.all(4.w),
+      padding: EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Center(
             child: Container(
-              width: 12.w,
-              height: 0.5.h,
+              width: 48,
+              height: 4,
               decoration: BoxDecoration(
                 color: AppTheme.lightTheme.colorScheme.outline,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
-          SizedBox(height: 2.h),
+          SizedBox(height: 16),
           Text(
             'Calorie Breakdown',
             style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w600,
             ),
           ),
-          SizedBox(height: 2.h),
+          SizedBox(height: 16),
           _buildNutrientRow(
               'Consumed', '${_userData['consumedCalories']} cal', Colors.green),
           _buildNutrientRow(
@@ -1068,51 +1068,51 @@ class _DashboardHomeState extends State<DashboardHome>
 
   Widget _buildQuickLogBottomSheet() {
     return Container(
-      height: 40.h,
+      height: 320,
       decoration: BoxDecoration(
         color: AppTheme.lightTheme.colorScheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      padding: EdgeInsets.all(4.w),
+      padding: EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Center(
             child: Container(
-              width: 12.w,
-              height: 0.5.h,
+              width: 48,
+              height: 4,
               decoration: BoxDecoration(
                 color: AppTheme.lightTheme.colorScheme.outline,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
-          SizedBox(height: 2.h),
+          SizedBox(height: 16),
           Text(
             'Quick Log',
             style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w600,
             ),
           ),
-          SizedBox(height: 2.h),
+          SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                   child: _buildQuickLogOption(
                       'Log Meal', 'restaurant', _logMeal)),
-              SizedBox(width: 2.w),
+              SizedBox(width: 8),
               Expanded(
                   child: _buildQuickLogOption(
                       'Add Water', 'water_drop', () => _addWater(250))),
             ],
           ),
-          SizedBox(height: 1.h),
+          SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                   child: _buildQuickLogOption(
                       'Log Weight', 'monitor_weight', _logWeight)),
-              SizedBox(width: 2.w),
+              SizedBox(width: 8),
               Expanded(
                   child: _buildQuickLogOption(
                       'Add Exercise', 'fitness_center', _logExercise)),
@@ -1158,7 +1158,7 @@ class _DashboardHomeState extends State<DashboardHome>
   // Helper widgets
   Widget _buildNutrientRow(String label, String value, Color color) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 1.h),
+      padding: EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -1167,7 +1167,7 @@ class _DashboardHomeState extends State<DashboardHome>
             style: AppTheme.lightTheme.textTheme.bodyMedium,
           ),
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 3.w, vertical: 0.5.h),
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
@@ -1190,7 +1190,7 @@ class _DashboardHomeState extends State<DashboardHome>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.all(4.w),
+        padding: EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppTheme.lightTheme.colorScheme.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
@@ -1206,7 +1206,7 @@ class _DashboardHomeState extends State<DashboardHome>
               color: AppTheme.lightTheme.colorScheme.primary,
               size: 24,
             ),
-            SizedBox(height: 1.h),
+            SizedBox(height: 8),
             Text(
               title,
               style: AppTheme.lightTheme.textTheme.labelMedium?.copyWith(
@@ -1222,12 +1222,12 @@ class _DashboardHomeState extends State<DashboardHome>
 
   Widget _buildConsultationDetailRow(String label, String value) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 0.5.h),
+      padding: EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 20.w,
+            width: 80,
             child: Text(
               '$label:',
               style: AppTheme.lightTheme.textTheme.bodySmall?.copyWith(

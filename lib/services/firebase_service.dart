@@ -29,7 +29,8 @@ class FirebaseService {
   FirebaseService._();
 
   FirebaseAuth get auth => FirebaseAuth.instance;
-  FirebaseFirestore get db => FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'dieticianbabu');
+  FirebaseFirestore get db => FirebaseFirestore.instanceFor(
+        app: Firebase.app(), databaseId: 'dieticianbabu');
   FirebaseStorage get storage => FirebaseStorage.instance;
 
   static Future<void> initialize() async {
@@ -147,6 +148,7 @@ class FirebaseService {
         'email': user.email ?? '',
         'phone': user.phoneNumber ?? '',
         'role': user.email == _adminEmail ? 'admin' : 'client',
+        'status': user.email == _adminEmail ? 'admin' : 'pending',
         'onboardingComplete': onboardingComplete,
         'createdAt': FieldValue.serverTimestamp(),
       });
