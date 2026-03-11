@@ -423,43 +423,55 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
 
     try {
       final uid = FirebaseService.instance.currentUser?.uid;
-      if (uid != null) {
-        final existing =
-            await FirebaseService.instance.clients.doc(uid).get();
-        final alreadyHasStartingWeight =
-            existing.exists && existing.data()?['startingWeightKg'] != null;
+      if (uid == null) throw Exception('Not logged in');
 
-        await FirebaseService.instance.clients.doc(uid).set({
-          'goal': _selectedGoal,
-          'activityLevel': _activityLevel,
-          'age': _age,
-          'heightCm': _height,
-          'weightKg': _weight,
-          if (!alreadyHasStartingWeight) 'startingWeightKg': _weight,
-          'gender': _gender,
-          'medicalConditions': _selectedMedicalConditions,
-          'cuisines': _selectedCuisines,
-          'dietaryRestrictions': _selectedDietaryRestrictions,
-          'tags': _selectedTags,
-          'subscriptionStatus': 'none',
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+      final existing =
+          await FirebaseService.instance.clients.doc(uid).get();
+      final alreadyHasStartingWeight =
+          existing.exists && existing.data()?['startingWeightKg'] != null;
 
-        await FirebaseService.instance.upsertUser(
-          FirebaseService.instance.currentUser!,
-          onboardingComplete: true,
-        );
-        await FirebaseService.instance.users.doc(uid).update({
-          'onboardingComplete': true,
-        });
+      // 1. Save health profile to clients collection
+      await FirebaseService.instance.clients.doc(uid).set({
+        'goal': _selectedGoal,
+        'activityLevel': _activityLevel,
+        'age': _age,
+        'heightCm': _height,
+        'weightKg': _weight,
+        if (!alreadyHasStartingWeight) 'startingWeightKg': _weight,
+        'gender': _gender,
+        'medicalConditions': _selectedMedicalConditions,
+        'cuisines': _selectedCuisines,
+        'dietaryRestrictions': _selectedDietaryRestrictions,
+        'tags': _selectedTags,
+        'subscriptionStatus': 'none',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // 2. Mark onboarding complete — this is what the SplashScreen reads.
+      //    MUST succeed before navigating away.
+      await FirebaseService.instance.users.doc(uid).update({
+        'onboardingComplete': true,
+      });
+
+      // 3. Only navigate after BOTH writes succeed
+      if (mounted) {
+        Navigator.of(context).pop(); // close loading dialog
+        Navigator.pushReplacementNamed(context, '/subscription-plans');
       }
     } catch (e) {
       debugPrint('Error saving profile: $e');
-    }
-
-    if (mounted) {
-      Navigator.of(context).pop();
-      Navigator.pushReplacementNamed(context, '/subscription-plans');
+      // Close loading dialog and show error — do NOT navigate away
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Failed to save profile. Check your connection and try again.\n$e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
     }
   }
 

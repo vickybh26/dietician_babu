@@ -5,7 +5,6 @@ import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
 import '../../services/firebase_service.dart';
-import './widgets/notification_settings_widget.dart';
 import './widgets/profile_header_widget.dart';
 import './widgets/settings_section_widget.dart';
 
@@ -30,15 +29,8 @@ class _SettingsProfileState extends State<SettingsProfile> {
   int _totalCheckIns = 0;
 
   // Settings state
-  bool offlineSyncEnabled = true;
-
-  Map<String, bool> notificationSettings = {
-    'meal_reminders': true,
-    'water_alerts': true,
-    'consultation_notifications': true,
-    'progress_updates': false,
-    'marketing_tips': false,
-  };
+  bool _shareAnonymizedData = false;
+  bool _marketingComms = false;
 
   @override
   void initState() {
@@ -112,8 +104,6 @@ class _SettingsProfileState extends State<SettingsProfile> {
         // ─── Load persisted preferences ────────────────────────────────────
         final prefs = userSnap.data()?['preferences'] as Map<String, dynamic>?;
         final savedNotifs = prefs?['notifications'] as Map<String, dynamic>?;
-        final savedOfflineSync = prefs?['offlineSync'] as bool?;
-
         setState(() {
           _userName = name;
           _userEmail = email;
@@ -123,14 +113,9 @@ class _SettingsProfileState extends State<SettingsProfile> {
           _weightLost = weightLost;
           _totalCheckIns = totalCheckIns;
           _isLoading = false;
-          if (savedOfflineSync != null) offlineSyncEnabled = savedOfflineSync;
-          if (savedNotifs != null) {
-            savedNotifs.forEach((k, v) {
-              if (notificationSettings.containsKey(k) && v is bool) {
-                notificationSettings[k] = v;
-              }
-            });
-          }
+          final prefs = userSnap.data()?['preferences'] as Map<String, dynamic>?;
+          _shareAnonymizedData = (prefs?['shareAnonymizedData'] as bool?) ?? false;
+          _marketingComms = (prefs?['marketingComms'] as bool?) ?? false;
         });
       }
     } catch (e) {
@@ -205,43 +190,10 @@ class _SettingsProfileState extends State<SettingsProfile> {
 
             SizedBox(height: 2.h),
 
-            // Preferences Section
-            SettingsSectionWidget(
-              title: 'Preferences',
-              items: [
-                SettingsItemData(
-                  title: 'Notifications',
-                  subtitle: 'Manage your notification preferences',
-                  iconName: 'notifications',
-                  iconColor: Colors.blue,
-                  iconBackgroundColor: Colors.blue,
-                  onTap: _showNotificationSettings,
-                ),
-              ],
-            ),
-
-            SizedBox(height: 2.h),
-
             // Health Data Section
             SettingsSectionWidget(
-              title: 'Health Data',
+              title: 'Privacy',
               items: [
-                SettingsItemData(
-                  title: 'Health App Integration',
-                  subtitle: 'Connect with Google Fit / Apple Health',
-                  iconName: 'favorite',
-                  iconColor: Colors.red,
-                  iconBackgroundColor: Colors.red,
-                  onTap: _manageHealthIntegration,
-                ),
-                SettingsItemData(
-                  title: 'Export Data',
-                  subtitle: 'Download your health data',
-                  iconName: 'download',
-                  iconColor: Colors.teal,
-                  iconBackgroundColor: Colors.teal,
-                  onTap: _exportData,
-                ),
                 SettingsItemData(
                   title: 'Privacy Controls',
                   subtitle: 'Manage data sharing preferences',
@@ -249,37 +201,6 @@ class _SettingsProfileState extends State<SettingsProfile> {
                   iconColor: Colors.amber,
                   iconBackgroundColor: Colors.amber,
                   onTap: _managePrivacy,
-                ),
-              ],
-            ),
-
-            SizedBox(height: 2.h),
-
-            // App Settings Section
-            SettingsSectionWidget(
-              title: 'App Settings',
-              items: [
-                SettingsItemData(
-                  title: 'Offline Sync',
-                  subtitle: offlineSyncEnabled
-                      ? 'Auto sync when online'
-                      : 'Manual sync only',
-                  iconName: 'sync',
-                  iconColor: Colors.cyan,
-                  iconBackgroundColor: Colors.cyan,
-                  trailing: Switch(
-                    value: offlineSyncEnabled,
-                    onChanged: _toggleOfflineSync,
-                    activeColor: AppTheme.lightTheme.primaryColor,
-                  ),
-                ),
-                SettingsItemData(
-                  title: 'Storage & Cache',
-                  subtitle: 'Clear cached images and data',
-                  iconName: 'storage',
-                  iconColor: Colors.brown,
-                  iconBackgroundColor: Colors.brown,
-                  onTap: _manageStorage,
                 ),
               ],
             ),
@@ -480,149 +401,221 @@ class _SettingsProfileState extends State<SettingsProfile> {
   }
 
   void _editPersonalInfo() {
-    final nameCtrl = TextEditingController(text: _userName);
-    final phoneCtrl = TextEditingController(text: _userPhone);
+    final uid = FirebaseService.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    // Load full client + user data then show edit dialog
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Personal Information'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Full Name',
-                prefixIcon: Icon(Icons.person),
-              ),
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    Future.wait([
+      FirebaseService.instance.users.doc(uid).get(),
+      FirebaseService.instance.clients.doc(uid).get(),
+    ]).then((results) {
+      if (!mounted) return;
+      Navigator.pop(context); // close loader
+
+      final userD = results[0].data() as Map<String, dynamic>? ?? {};
+      final clientD = results[1].data() as Map<String, dynamic>? ?? {};
+
+      final nameCtrl = TextEditingController(text: userD['name'] as String? ?? _userName);
+      final phoneCtrl = TextEditingController(text: userD['phone'] as String? ?? _userPhone);
+      final cityCtrl = TextEditingController(text: userD['city'] as String? ?? '');
+      final countryCtrl = TextEditingController(text: userD['country'] as String? ?? 'India');
+
+      // Read-only onboarding fields
+      final goal = clientD['goal'] as String? ?? '—';
+      final gender = clientD['gender'] as String? ?? '—';
+      final age = clientD['age']?.toString() ?? '—';
+      final height = clientD['heightCm']?.toString() ?? '—';
+      final weight = clientD['weightKg']?.toString() ?? '—';
+      final conditions = (clientD['medicalConditions'] as List?)?.join(', ') ?? '—';
+      final diet = (clientD['dietaryRestrictions'] as List?)?.join(', ') ?? '—';
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Personal Information'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('— Editable Fields —',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Full Name',
+                    prefixIcon: Icon(Icons.person),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: _userEmail,
+                  readOnly: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Email (cannot be changed)',
+                    prefixIcon: Icon(Icons.email),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Mobile Number',
+                    prefixIcon: Icon(Icons.phone),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: cityCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'City',
+                    prefixIcon: Icon(Icons.location_city),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: countryCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Country',
+                    prefixIcon: Icon(Icons.flag),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text('— Health Profile (from Onboarding) —',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 8),
+                _infoRow(Icons.flag_outlined, 'Goal', goal),
+                _infoRow(Icons.wc,            'Gender', gender),
+                _infoRow(Icons.cake,          'Age', age),
+                _infoRow(Icons.height,        'Height', height.isNotEmpty && height != '—' ? '$height cm' : '—'),
+                _infoRow(Icons.monitor_weight,'Weight', weight.isNotEmpty && weight != '—' ? '$weight kg' : '—'),
+                _infoRow(Icons.medical_services, 'Medical Conditions', conditions),
+                _infoRow(Icons.restaurant,    'Dietary Restrictions', diet),
+              ],
             ),
-            SizedBox(height: 2.h),
-            TextFormField(
-              initialValue: _userEmail,
-              readOnly: true,
-              decoration: const InputDecoration(
-                labelText: 'Email (cannot be changed)',
-                prefixIcon: Icon(Icons.email),
-              ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
             ),
-            SizedBox(height: 2.h),
-            TextFormField(
-              controller: phoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Phone',
-                prefixIcon: Icon(Icons.phone),
-              ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                try {
+                  await FirebaseService.instance.users.doc(uid).update({
+                    if (nameCtrl.text.trim().isNotEmpty) 'name': nameCtrl.text.trim(),
+                    if (phoneCtrl.text.trim().isNotEmpty) 'phone': phoneCtrl.text.trim(),
+                    'city': cityCtrl.text.trim(),
+                    'country': countryCtrl.text.trim(),
+                  });
+                  await _loadUserData();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Profile updated ✓')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Update failed: $e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Save'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newName = nameCtrl.text.trim();
-              final newPhone = phoneCtrl.text.trim();
-              Navigator.pop(context);
-              try {
-                final uid = FirebaseService.instance.currentUser?.uid;
-                if (uid != null) {
-                  await FirebaseService.instance.users.doc(uid).update({
-                    if (newName.isNotEmpty) 'name': newName,
-                    if (newPhone.isNotEmpty) 'phone': newPhone,
-                  });
-                  await _loadUserData(); // refresh UI
-                }
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Profile updated!')),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Update failed: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('Save'),
-          ),
+      );
+    }).catchError((e) {
+      if (mounted) Navigator.pop(context);
+    });
+  }
+
+  /// Small read-only detail row used in Personal Info dialog.
+  Widget _infoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.grey),
+          const SizedBox(width: 8),
+          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
         ],
       ),
     );
   }
 
   void _changePassword() {
-    final newPassCtrl = TextEditingController();
-    final confirmPassCtrl = TextEditingController();
+    // Use sendPasswordResetEmail — safer than updatePassword which requires
+    // recent authentication and often fails with "requires-recent-login".
+    final email = _userEmail.isNotEmpty
+        ? _userEmail
+        : FirebaseService.instance.currentUser?.email ?? '';
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('Change Password'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextFormField(
-              controller: newPassCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'New Password (min 6 chars)',
-                prefixIcon: Icon(Icons.lock_outline),
-              ),
+            const Text(
+              'A password reset link will be sent to your registered email address.',
+              style: TextStyle(fontSize: 14),
             ),
-            SizedBox(height: 2.h),
-            TextFormField(
-              controller: confirmPassCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Confirm New Password',
-                prefixIcon: Icon(Icons.lock_outline),
-              ),
+            const SizedBox(height: 12),
+            Text(
+              email,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
-              final newPw = newPassCtrl.text;
-              final confirmPw = confirmPassCtrl.text;
-              if (newPw.length < 6) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Password must be at least 6 characters')),
-                );
-                return;
-              }
-              if (newPw != confirmPw) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Passwords do not match')),
-                );
-                return;
-              }
-              Navigator.pop(context);
+              Navigator.pop(ctx);
               try {
-                await FirebaseService.instance.currentUser
-                    ?.updatePassword(newPw);
+                await FirebaseService.instance
+                    .sendPasswordReset(email);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Password changed successfully')),
+                    const SnackBar(
+                      content: Text(
+                          'Password reset email sent! Check your inbox.'),
+                      backgroundColor: Colors.green,
+                    ),
                   );
                 }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed: $e. Please re-login and try again.')),
+                    SnackBar(content: Text('Failed: $e')),
                   );
                 }
               }
             },
-            child: const Text('Change'),
+            child: const Text('Send Reset Link'),
           ),
         ],
       ),
@@ -630,266 +623,6 @@ class _SettingsProfileState extends State<SettingsProfile> {
   }
 
   void _manageSubscription() {
-    Navigator.pushNamed(context, '/subscription-management');
-  }
-
-  void _showNotificationSettings() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(4.w)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        maxChildSize: 0.9,
-        minChildSize: 0.5,
-        builder: (context, scrollController) => Container(
-          padding: EdgeInsets.all(4.w),
-          child: Column(
-            children: [
-              Container(
-                width: 12.w,
-                height: 0.5.h,
-                decoration: BoxDecoration(
-                  color: AppTheme.lightTheme.dividerColor,
-                  borderRadius: BorderRadius.circular(1.w),
-                ),
-              ),
-              SizedBox(height: 2.h),
-              Text(
-                'Notification Settings',
-                style: AppTheme.lightTheme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: 2.h),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  child: NotificationSettingsWidget(
-                    notificationSettings: notificationSettings,
-                    onSettingChanged: (key, value) {
-                      setState(() {
-                        notificationSettings[key] = value;
-                      });
-                      // Persist to Firestore
-                      final uid = FirebaseService.instance.currentUser?.uid;
-                      if (uid != null) {
-                        FirebaseService.instance.users.doc(uid).set({
-                          'preferences': {'notifications': {key: value}},
-                        }, SetOptions(merge: true)).catchError((e) {
-                          debugPrint('Failed to save notification pref: $e');
-                        });
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _manageHealthIntegration() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Health App Integration'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Connect with health apps to sync your data:'),
-            SizedBox(height: 2.h),
-            ListTile(
-              leading: CustomIconWidget(
-                iconName: 'favorite',
-                color: Colors.red,
-                size: 24,
-              ),
-              title: const Text('Google Fit'),
-              subtitle: const Text('Connected'),
-              trailing: Switch(
-                value: true,
-                onChanged: (value) {},
-                activeColor: AppTheme.lightTheme.primaryColor,
-              ),
-            ),
-            ListTile(
-              leading: CustomIconWidget(
-                iconName: 'favorite',
-                color: Colors.blue,
-                size: 24,
-              ),
-              title: const Text('Apple Health'),
-              subtitle: const Text('Not connected'),
-              trailing: Switch(
-                value: false,
-                onChanged: (value) {},
-                activeColor: AppTheme.lightTheme.primaryColor,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _exportData() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Export Health Data'),
-        content: const Text(
-          'Your health data will be exported as a CSV file. This includes your meal logs, weight tracking, and progress data.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text(
-                        'Data export started. You will receive an email shortly.')),
-              );
-            },
-            child: const Text('Export'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _managePrivacy() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Privacy Controls'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('Share anonymized data'),
-              subtitle: const Text('Help improve our services'),
-              trailing: Switch(
-                value: false,
-                onChanged: (value) {},
-                activeColor: AppTheme.lightTheme.primaryColor,
-              ),
-            ),
-            ListTile(
-              title: const Text('Marketing communications'),
-              subtitle: const Text('Receive health tips and offers'),
-              trailing: Switch(
-                value: true,
-                onChanged: (value) {},
-                activeColor: AppTheme.lightTheme.primaryColor,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _toggleOfflineSync(bool value) {
-    setState(() => offlineSyncEnabled = value);
-    // Persist to Firestore
-    final uid = FirebaseService.instance.currentUser?.uid;
-    if (uid != null) {
-      FirebaseService.instance.users.doc(uid).set({
-        'preferences': {'offlineSync': value},
-      }, SetOptions(merge: true)).catchError((e) {
-        debugPrint('Failed to save offline sync pref: $e');
-      });
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(value
-            ? 'Offline sync enabled - Data will sync automatically'
-            : 'Offline sync disabled - Manual sync required'),
-      ),
-    );
-  }
-
-  void _manageStorage() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Storage & Cache'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Storage Usage:'),
-            SizedBox(height: 1.h),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('App Data'),
-                const Text('180 MB'),
-              ],
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Cache'),
-                const Text('65 MB'),
-              ],
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Total'),
-                Text('245 MB', style: TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            SizedBox(height: 2.h),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Cache cleared successfully')),
-                  );
-                },
-                child: const Text('Clear Cache'),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showHelp() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -906,20 +639,247 @@ class _SettingsProfileState extends State<SettingsProfile> {
               child: Container(
                 width: 40, height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2)),
               ),
             ),
             const SizedBox(height: 16),
-            const Text('Help & FAQ', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            _faqItem('How do I update my diet plan?', 'Contact your dietician or use the Weekly Check-in to share your progress. Your plan will be updated by the admin.'),
-            _faqItem('How do I track my progress?', 'Tap the Progress tab at the bottom. You can log weight and view your history after submitting Weekly Check-ins.'),
-            _faqItem('How do I make a payment?', 'Go to Settings → Subscription Plans to view and purchase a plan using Razorpay.'),
-            _faqItem('My name shows incorrectly — how to fix?', 'Go to Settings → Personal Information and update your name, then tap Save.'),
+            const Text('Subscription Management',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('Current Plan: $_currentPlan',
+                style: const TextStyle(fontSize: 14, color: Colors.grey)),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.pause_circle_outline),
+                label: const Text('Request Pause'),
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await _sendSubscriptionRequest('pause');
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF61b239),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.play_circle_outline),
+                label: const Text('Request Resume'),
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await _sendSubscriptionRequest('resume');
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.upgrade),
+                label: const Text('View / Upgrade Plans'),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushNamed(context, '/subscription-plans');
+                },
+              ),
+            ),
             const SizedBox(height: 24),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendSubscriptionRequest(String type) async {
+    final uid = FirebaseService.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseService.instance.db.collection('subscriptionRequests').add({
+        'clientId': uid,
+        'clientName': _userName,
+        'clientEmail': _userEmail,
+        'type': type, // 'pause' or 'resume'
+        'currentPlan': _currentPlan,
+        'requestedAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Request to ${type == 'pause' ? 'pause' : 'resume'} subscription sent to your dietician ✓'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send request: $e')),
+        );
+      }
+    }
+  }
+
+  void _managePrivacy() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Privacy Controls',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              const Text(
+                'Control how your data is used. Changes are saved immediately.',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              _privacyToggle(
+                setSheet: setSheet,
+                title: 'Share anonymized data',
+                subtitle: 'Help us improve diet recommendations for all users',
+                value: _shareAnonymizedData,
+                prefKey: 'shareAnonymizedData',
+                onChanged: (v) => setState(() => _shareAnonymizedData = v),
+              ),
+              const Divider(),
+              _privacyToggle(
+                setSheet: setSheet,
+                title: 'Marketing communications',
+                subtitle: 'Receive health tips, offers, and app updates via email',
+                value: _marketingComms,
+                prefKey: 'marketingComms',
+                onChanged: (v) => setState(() => _marketingComms = v),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Your personal health data is never sold to third parties. '  
+                'It is only shared with your assigned dietician.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _privacyToggle({
+    required StateSetter setSheet,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required String prefKey,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+      trailing: Switch(
+        value: value,
+        onChanged: (v) {
+          setSheet(() {});
+          onChanged(v);
+          final uid = FirebaseService.instance.currentUser?.uid;
+          if (uid != null) {
+            FirebaseService.instance.users.doc(uid).set({
+              'preferences': {prefKey: v},
+            }, SetOptions(merge: true)).catchError((e) {
+              debugPrint('Failed to save privacy pref: $e');
+            });
+          }
+        },
+        activeColor: AppTheme.lightTheme.primaryColor,
+      ),
+    );
+  }
+
+  void _showHelp() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.75,
+        maxChildSize: 0.95,
+        builder: (ctx, sc) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: ListView(
+            controller: sc,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Help & FAQ',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              _faqItem('How do I get my diet plan?',
+                  'Once you subscribe to a plan, your dietician will create a personalized diet plan and upload it to the app. You can view it under "My Diet Plan" on the home screen.'),
+              _faqItem('How do I update my diet plan?',
+                  'Submit your Weekly Check-in with your progress, current weight, and any concerns. Your dietician reviews it and updates your plan accordingly.'),
+              _faqItem('How do I log my meals?',
+                  'Tap the "+ Quick Log" button on the home screen and select "Meal". Enter the food name, calories, and meal type (breakfast, lunch, dinner, etc.).'),
+              _faqItem('How do I track my weight?',
+                  'Tap "Quick Log" → "Weight" to record your current weight. Your progress chart is visible in the "My Progress" section.'),
+              _faqItem('How do I change my password?',
+                  'Go to Profile → Change Password. A password reset link will be sent to your registered email address.'),
+              _faqItem('How do I make a payment or subscribe?',
+                  'Go to the Quick Access tile "Subscription" on the Home screen. Choose a plan and complete payment via Razorpay.'),
+              _faqItem('Can I pause my subscription?',
+                  'Yes — go to Profile → Subscription Management → Request Pause. Your dietician will be notified and pause your plan accordingly.'),
+              _faqItem('My name or details are incorrect — how to fix?',
+                  'Go to Profile → Personal Information and update your name, mobile number, city, or country. Onboarding health details are read-only; contact support to change them.'),
+              _faqItem('Why am I being signed out randomly?',
+                  'This has been fixed in the latest version. If it persists, try signing out once manually and signing back in. Your data is safe in the cloud.'),
+              _faqItem('How do I contact my dietician?',
+                  'Use the "Contact Support" option in the Profile section. You can call or WhatsApp us at +91 8871448064 and we will connect you with your dietician.'),
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
@@ -942,17 +902,97 @@ class _SettingsProfileState extends State<SettingsProfile> {
   }
 
   Future<void> _contactSupport() async {
-    const whatsapp = 'https://wa.me/918871448064?text=Hi%2C%20I%20need%20help%20with%20the%20Dietician%20Babu%20app';
-    final uri = Uri.parse(whatsapp);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open WhatsApp. Please contact +91 88714 48064')),
-        );
-      }
-    }
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('Contact Support',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            const Text(
+              'We are here to help you. Reach us via call or WhatsApp:',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              '+91 8871448064',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2196F3),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.call),
+                label: const Text('Call Us'),
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final tel = Uri.parse('tel:+918871448064');
+                  if (await canLaunchUrl(tel)) {
+                    await launchUrl(tel);
+                  } else if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Could not open dialer. Call +91 8871448064')),
+                    );
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF25D366),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.chat),
+                label: const Text('WhatsApp Us'),
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  const url =
+                      'https://wa.me/918871448064?text=Hi%2C%20I%20need%20help%20with%20the%20Dietician%20Babu%20app';
+                  final uri = Uri.parse(url);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } else if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Could not open WhatsApp. Message +91 8871448064')),
+                    );
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
   }
 
   void _sendFeedback() {

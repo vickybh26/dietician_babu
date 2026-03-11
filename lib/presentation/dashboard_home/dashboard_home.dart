@@ -725,7 +725,8 @@ class _DashboardHomeState extends State<DashboardHome>
   }
 
   void _logWeight() {
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    // Dismiss the Quick Log bottom sheet (one level) before showing the dialog.
+    Navigator.pop(context);
     final ctrl = TextEditingController();
     showDialog(
       context: context,
@@ -799,7 +800,8 @@ class _DashboardHomeState extends State<DashboardHome>
   }
 
   void _logMeal() {
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    // Dismiss the Quick Log bottom sheet (one level) before showing the dialog.
+    Navigator.pop(context);
     final nameCtrl = TextEditingController();
     final calCtrl = TextEditingController();
     showDialog(
@@ -914,7 +916,8 @@ class _DashboardHomeState extends State<DashboardHome>
   }
 
   void _logExercise() {
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    // Dismiss the Quick Log bottom sheet (one level) before showing the dialog.
+    Navigator.pop(context);
     final typeCtrl = TextEditingController();
     final durationCtrl = TextEditingController();
     showDialog(
