@@ -41,50 +41,56 @@ class QuickActionsWidget extends StatelessWidget {
           const SizedBox(height: 16),
           
           // Action Grid
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 4,
-            childAspectRatio: 1.2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            children: [
-              _buildActionCard(
-                context,
-                'Approve Clients',
-                Icons.check_circle,
-                const Color(0xFF2E7D32),
-                pendingApprovals > 0 
-                    ? '$pendingApprovals pending' 
-                    : 'All approved',
-                () => Navigator.pushNamed(context, AppRoutes.clientManagementSystem),
-                badge: pendingApprovals > 0 ? '$pendingApprovals' : null,
-              ),
-              _buildActionCard(
-                context,
-                'Create Diet Plan',
-                Icons.restaurant_menu,
-                const Color(0xFF1976D2),
-                'Add new plan',
-                () => _showComingSoon(context, 'Diet Plan Creator'),
-              ),
-              _buildActionCard(
-                context,
-                'Send Notifications',
-                Icons.notifications_active,
-                const Color(0xFFFF9800),
-                'Bulk messaging',
-                () => _showComingSoon(context, 'Bulk Notifications'),
-              ),
-              _buildActionCard(
-                context,
-                'Export Data',
-                Icons.file_download,
-                const Color(0xFF9C27B0),
-                'Generate reports',
-                () => _showExportOptions(context),
-              ),
-            ],
+          // Action Grid — responsive: 2 columns on narrow screens, 4 on wide
+          LayoutBuilder(
+            builder: (ctx, constraints) {
+              final cols = constraints.maxWidth >= 600 ? 4 : 2;
+              return GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: cols,
+                childAspectRatio: cols == 4 ? 1.2 : 1.4,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                children: [
+                  _buildActionCard(
+                    context,
+                    'Approve Clients',
+                    Icons.check_circle,
+                    const Color(0xFF2E7D32),
+                    pendingApprovals > 0
+                        ? '$pendingApprovals pending'
+                        : 'All approved',
+                    () => Navigator.pushNamed(context, AppRoutes.clientManagementSystem),
+                    badge: pendingApprovals > 0 ? '$pendingApprovals' : null,
+                  ),
+                  _buildActionCard(
+                    context,
+                    'Create Diet Plan',
+                    Icons.restaurant_menu,
+                    const Color(0xFF1976D2),
+                    'Add new plan',
+                    () => Navigator.pushNamed(context, AppRoutes.adminDietPlanCreator),
+                  ),
+                  _buildActionCard(
+                    context,
+                    'Send Notifications',
+                    Icons.notifications_active,
+                    const Color(0xFFFF9800),
+                    'Bulk messaging',
+                    () => _showComingSoon(context, 'Bulk Notifications'),
+                  ),
+                  _buildActionCard(
+                    context,
+                    'Export Data',
+                    Icons.file_download,
+                    const Color(0xFF9C27B0),
+                    'Generate reports',
+                    () => _showExportOptions(context),
+                  ),
+                ],
+              );
+            },
           ),
           
           const SizedBox(height: 20),
@@ -104,9 +110,9 @@ class QuickActionsWidget extends StatelessWidget {
               Expanded(
                 child: _buildQuickLink(
                   context,
-                  'Analytics Dashboard',
+                  'Sales Analytics',
                   Icons.analytics,
-                  () => _showComingSoon(context, 'Analytics Dashboard'),
+                  () => Navigator.pushNamed(context, AppRoutes.salesAnalytics),
                 ),
               ),
               const SizedBox(width: 12),
@@ -115,7 +121,7 @@ class QuickActionsWidget extends StatelessWidget {
                   context,
                   'Settings',
                   Icons.settings,
-                  () => _showComingSoon(context, 'Admin Settings'),
+                  () => Navigator.pushNamed(context, AppRoutes.adminSettings),
                 ),
               ),
             ],

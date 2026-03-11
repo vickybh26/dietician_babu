@@ -44,14 +44,40 @@ class ClientManagementService {
 
   static Future<List<Map<String, dynamic>>> getPendingApprovals(
       {String? status}) async {
-    final snap = await _fs.clients
-        .where('subscriptionStatus', isEqualTo: status ?? 'none')
-        .get();
-    return snap.docs.map((d) {
+    // Query clients with status 'none' OR 'pending' by default (both mean awaiting approval)
+    final snap = status != null
+        ? await _fs.clients
+            .where('subscriptionStatus', isEqualTo: status)
+            .get()
+        : await _fs.clients
+            .where('subscriptionStatus', whereIn: ['none', 'pending'])
+            .get();
+
+    final List<Map<String, dynamic>> result = [];
+    for (final d in snap.docs) {
       final data = d.data();
       data['uid'] = d.id;
-      return data;
-    }).toList();
+
+      // Join name & email from users collection (clients collection has health data, not identity)
+      try {
+        final userSnap = await _fs.users.doc(d.id).get();
+        if (userSnap.exists) {
+          final userData = userSnap.data()!;
+          data['name'] = userData['name'] ??
+              userData['displayName'] ??
+              userData['email']?.toString().split('@').first ??
+              'New User';
+          data['email'] = userData['email'] ?? '';
+        }
+      } catch (_) {
+        // If user doc is missing, fall back gracefully
+        data.putIfAbsent('name', () => 'New User');
+        data.putIfAbsent('email', () => '');
+      }
+
+      result.add(data);
+    }
+    return result;
   }
 
   static Future<Map<String, dynamic>?> getClientDetails(String uid) async {

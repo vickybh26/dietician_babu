@@ -32,11 +32,11 @@ class RevenueChartWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
+          // Header — responsive: row on wide screens, column on narrow
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 420;
+              final titleWidget = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -56,40 +56,46 @@ class RevenueChartWidget extends StatelessWidget {
                     ),
                   ),
                 ],
-              ),
+              );
               // Time Range Selector
-              SizedBox(
-                width: 130,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: selectedTimeRange,
-                      isExpanded: true,
-                      items: ['This Week', 'This Month', 'Last 3 Months', 'This Year']
-                          .map((range) => DropdownMenuItem(
-                                value: range,
-                                child: Text(
-                                  range,
-                                  style: GoogleFonts.inter(fontSize: 13),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ))
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          onTimeRangeChanged(value);
-                        }
-                      },
-                    ),
+              final dropdownWidget = Container(
+                width: 140,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: selectedTimeRange,
+                    isExpanded: true,
+                    items: ['This Week', 'This Month', 'Last 3 Months', 'This Year']
+                        .map((range) => DropdownMenuItem(
+                              value: range,
+                              child: Text(
+                                range,
+                                style: GoogleFonts.inter(fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) onTimeRangeChanged(value);
+                    },
                   ),
                 ),
-              ),
-            ],
+              );
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [titleWidget, const SizedBox(height: 12), dropdownWidget],
+                );
+              }
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [Expanded(child: titleWidget), const SizedBox(width: 12), dropdownWidget],
+              );
+            },
           ),
           const SizedBox(height: 24),
           
@@ -237,7 +243,7 @@ class RevenueChartWidget extends StatelessWidget {
               Expanded(
                 child: _buildSummaryItem(
                   'Avg. Order',
-                  '₹2,250',
+                  '₹${(analytics['avgOrderValue'] ?? 0.0).toStringAsFixed(0)}',
                   Colors.orange,
                 ),
               ),

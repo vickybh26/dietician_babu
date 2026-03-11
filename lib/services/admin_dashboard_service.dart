@@ -46,6 +46,11 @@ class AdminDashboardService {
         revenueGrowth = 100.0; // 100% growth if there was no revenue last month
       }
 
+      // Calculate Avg Order Value for current month
+      final currentPaymentCount = currentMonthPayments.docs.length;
+      final avgOrderValue =
+          currentPaymentCount > 0 ? currentRevenue / currentPaymentCount : 0.0;
+
       // 4. Correct Pending Approvals Sync (Checks for status 'none' or 'pending')
       final pendingClients = await _fs.clients
           .where('subscriptionStatus', whereIn: ['none', 'pending'])
@@ -57,6 +62,7 @@ class AdminDashboardService {
         'totalRevenue': currentRevenue,
         'pendingApprovals': pendingClients.docs.length,
         'revenueGrowth': revenueGrowth,
+        'avgOrderValue': avgOrderValue,
       };
     } catch (e) {
       throw Exception('Failed to fetch dashboard analytics: $e');

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../routes/app_routes.dart';
 
 class RecentActivityWidget extends StatelessWidget {
   final List<Map<String, dynamic>> activities;
@@ -64,7 +65,7 @@ class RecentActivityWidget extends StatelessWidget {
                     separatorBuilder: (context, index) => const Divider(height: 20),
                     itemBuilder: (context, index) {
                       final activity = activities[index];
-                      return _buildActivityItem(activity);
+                      return _buildActivityItem(context, activity);
                     },
                   ),
                 ),
@@ -96,7 +97,7 @@ class RecentActivityWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildActivityItem(Map<String, dynamic> activity) {
+  Widget _buildActivityItem(BuildContext context, Map<String, dynamic> activity) {
     final type = activity['type'] as String;
     final message = activity['message'] as String;
     final timestamp = activity['timestamp'] as String;
@@ -105,97 +106,119 @@ class RecentActivityWidget extends StatelessWidget {
     IconData iconData;
     Color iconColor;
     Color backgroundColor;
+    String? targetRoute;
 
     switch (type) {
       case 'subscription':
         iconData = Icons.card_membership;
         iconColor = const Color(0xFF2E7D32);
         backgroundColor = const Color(0xFF2E7D32).withOpacity(0.1);
+        targetRoute = AppRoutes.subscriptionsManagement;
         break;
       case 'payment':
         iconData = Icons.payment;
         iconColor = const Color(0xFF1976D2);
         backgroundColor = const Color(0xFF1976D2).withOpacity(0.1);
+        targetRoute = AppRoutes.salesAnalytics;
         break;
       case 'client':
         iconData = Icons.person_add;
         iconColor = const Color(0xFFFF9800);
         backgroundColor = const Color(0xFFFF9800).withOpacity(0.1);
+        targetRoute = AppRoutes.clientManagementSystem;
+        break;
+      case 'checkin':
+        iconData = Icons.check_circle_outline;
+        iconColor = const Color(0xFF7B1FA2);
+        backgroundColor = const Color(0xFF7B1FA2).withOpacity(0.1);
+        targetRoute = AppRoutes.clientManagementSystem;
         break;
       default:
         iconData = Icons.notifications;
         iconColor = Colors.grey;
         backgroundColor = Colors.grey.withOpacity(0.1);
+        targetRoute = null;
     }
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Icon
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Icon(
-            iconData,
-            color: iconColor,
-            size: 18,
-          ),
-        ),
-        const SizedBox(width: 12),
-        
-        // Content
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    return InkWell(
+      onTap: targetRoute != null
+          ? () => Navigator.pushNamed(context, targetRoute!)
+          : null,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Icon
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Icon(
+                iconData,
+                color: iconColor,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 12),
+
+            // Content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      message,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey[800],
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (priority == 'urgent')
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        'URGENT',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          message,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[800],
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      if (priority == 'urgent')
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            'URGENT',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      if (targetRoute != null)
+                        Icon(Icons.chevron_right, size: 16, color: Colors.grey[400]),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatTimestamp(timestamp),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.grey[500],
                     ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                _formatTimestamp(timestamp),
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: Colors.grey[500],
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 

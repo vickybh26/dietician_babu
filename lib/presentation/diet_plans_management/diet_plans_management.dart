@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/firebase_service.dart';
 import '../../routes/app_routes.dart';
@@ -128,6 +129,42 @@ class _DietPlansManagementState extends State<DietPlansManagement> {
         );
       }
     }
+  }
+
+  /// View / preview a plan (AI structured or PDF)
+  Future<void> _viewPlan(Map<String, dynamic> plan) async {
+    final isAI = plan['format'] == 'structured' || plan['type'] == 'AI Generated';
+
+    if (!isAI) {
+      // PDF plan — open URL
+      final url = plan['fileUrl'] as String? ?? plan['url'] as String? ?? '';
+      if (url.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No PDF URL found for this plan')),
+          );
+        }
+        return;
+      }
+      final uri = Uri.tryParse(url);
+      if (uri != null && await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Cannot open URL: $url')),
+          );
+        }
+      }
+      return;
+    }
+
+    // AI Structured plan — show a dialog
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => _StructuredPlanPreviewDialog(plan: plan),
+    );
   }
 
   /// Assign an existing plan to a client
@@ -470,13 +507,24 @@ class _DietPlansManagementState extends State<DietPlansManagement> {
                 // Actions
                 PopupMenuButton<String>(
                   onSelected: (action) {
-                    if (action == 'delete') {
+                    if (action == 'view') {
+                      _viewPlan(plan);
+                    } else if (action == 'delete') {
                       _deletePlan(plan['id'], plan['title'] ?? 'Untitled');
                     } else if (action == 'assign') {
                       _assignToClient(plan['id']);
                     }
                   },
                   itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'view',
+                      child: Row(children: [
+                        Icon(Icons.visibility_outlined,
+                            size: 18, color: Colors.green),
+                        SizedBox(width: 8),
+                        Text('View Plan'),
+                      ]),
+                    ),
                     const PopupMenuItem(
                       value: 'assign',
                       child: Row(children: [
@@ -566,6 +614,222 @@ class _DietPlansManagementState extends State<DietPlansManagement> {
                 foregroundColor: Colors.white),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Structured Plan Preview Dialog ───────────────────────────────────────────
+
+class _StructuredPlanPreviewDialog extends StatefulWidget {
+  final Map<String, dynamic> plan;
+  const _StructuredPlanPreviewDialog({required this.plan});
+
+  @override
+  State<_StructuredPlanPreviewDialog> createState() =>
+      _StructuredPlanPreviewDialogState();
+}
+
+class _StructuredPlanPreviewDialogState
+    extends State<_StructuredPlanPreviewDialog> {
+  static const _days = [
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+  ];
+  static const _meals = ['breakfast', 'lunch', 'snack', 'dinner'];
+
+  String _selectedDay = 'Monday';
+
+  @override
+  Widget build(BuildContext context) {
+    final plan = widget.plan;
+    final title = plan['title'] as String? ?? 'Untitled Plan';
+    final weeklyMeals =
+        (plan['weeklyMeals'] as Map?)?.cast<String, dynamic>() ?? {};
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 640),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF61b239).withOpacity(0.08),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.auto_awesome_rounded,
+                      color: Color(0xFF61b239)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: GoogleFonts.inter(
+                          fontSize: 17, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                    style: IconButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Day Selector
+            SizedBox(
+              height: 44,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                itemCount: _days.length,
+                itemBuilder: (_, i) {
+                  final day = _days[i];
+                  final selected = _selectedDay == day;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(day.substring(0, 3)),
+                      selected: selected,
+                      onSelected: (_) => setState(() => _selectedDay = day),
+                      selectedColor: const Color(0xFF61b239),
+                      labelStyle: TextStyle(
+                        color: selected ? Colors.white : Colors.grey[700],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const Divider(height: 1),
+
+            // Meal Cards
+            Expanded(
+              child: () {
+                final dayData = (weeklyMeals[_selectedDay] as Map?)
+                        ?.cast<String, dynamic>() ??
+                    {};
+                if (dayData.isEmpty) {
+                  return const Center(
+                    child: Text('No meal data for this day.',
+                        style: TextStyle(color: Colors.grey)),
+                  );
+                }
+                return ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: _meals
+                      .where((m) => dayData[m] != null)
+                      .map((meal) => _MealTile(
+                            mealName: meal[0].toUpperCase() + meal.substring(1),
+                            content: dayData[meal]?.toString() ?? '',
+                          ))
+                      .toList(),
+                );
+              }(),
+            ),
+
+            // Notes row (if any)
+            if ((plan['notes'] as String?)?.isNotEmpty == true)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.sticky_note_2_outlined,
+                        size: 16, color: Colors.orange),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        plan['notes'],
+                        style: GoogleFonts.inter(
+                            fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MealTile extends StatelessWidget {
+  final String mealName;
+  final String content;
+  const _MealTile({required this.mealName, required this.content});
+
+  static const _icons = {
+    'Breakfast': Icons.free_breakfast_outlined,
+    'Lunch': Icons.lunch_dining_outlined,
+    'Snack': Icons.apple_outlined,
+    'Dinner': Icons.dinner_dining_outlined,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: const Color(0xFF61b239).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                _icons[mealName] ?? Icons.restaurant_outlined,
+                size: 18,
+                color: const Color(0xFF61b239),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    mealName,
+                    style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700]),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    content,
+                    style: GoogleFonts.inter(
+                        fontSize: 13, color: Colors.grey[800]),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
