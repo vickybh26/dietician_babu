@@ -137,16 +137,22 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
     final int nudgeCount = _clientNudges.length;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      decoration: const BoxDecoration(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+      decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey, width: 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 child: Column(
@@ -156,35 +162,38 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
                       'Client Management',
                       style: GoogleFonts.inter(
                         fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1A1A2E),
                       ),
                     ),
+                    const SizedBox(height: 2),
                     Text(
                       'Manage approvals, targets & communications',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
+                      style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500]),
                     ),
                   ],
                 ),
               ),
               IconButton(
                 onPressed: _loadClientData,
-                icon: const Icon(Icons.refresh),
+                icon: const Icon(Icons.refresh_rounded),
                 tooltip: 'Refresh Data',
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.grey[100],
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Row(
             children: [
-              _buildStatCard('Pending', _pendingClients.length.toString(), Colors.orange),
+              _buildStatCard('Pending', _pendingClients.length.toString(), const Color(0xFFF57C00)),
               const SizedBox(width: 12),
-              _buildStatCard('Active', _activeClients.length.toString(), Colors.green),
+              _buildStatCard('Active', _activeClients.length.toString(), const Color(0xFF388E3C)),
               const SizedBox(width: 12),
-              _buildStatCard('Nudges', nudgeCount.toString(), Colors.red, showBell: nudgeCount > 0),
+              _buildStatCard('Nudges', nudgeCount.toString(), const Color(0xFFD32F2F),
+                  showBell: nudgeCount > 0),
             ],
           ),
         ],
@@ -195,35 +204,51 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
   Widget _buildStatCard(String title, String value, Color color, {bool showBell = false}) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.3)),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withOpacity(0.25)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.08),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        child: Column(
+        child: Row(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                showBell ? Icons.notifications_active : Icons.bar_chart,
+                color: color,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (showBell) const Icon(Icons.notifications_active, color: Colors.red, size: 16),
-                if (showBell) const SizedBox(width: 4),
                 Text(
                   value,
                   style: GoogleFonts.inter(
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
                     color: color,
                   ),
                 ),
+                Text(
+                  title,
+                  style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]),
+                ),
               ],
-            ),
-            Text(
-              title,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: color,
-              ),
             ),
           ],
         ),
@@ -234,27 +259,63 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
   Widget _buildTabBar() {
     return Container(
       color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: TabBar(
         controller: _tabController,
-        labelColor: const Color(0xFF1976D2),
+        labelColor: Colors.white,
         unselectedLabelColor: Colors.grey[600],
-        indicatorColor: const Color(0xFF1976D2),
         isScrollable: true,
         tabAlignment: TabAlignment.start,
+        dividerHeight: 0,
+        indicator: BoxDecoration(
+          color: const Color(0xFF1976D2),
+          borderRadius: BorderRadius.circular(20),
+        ),
         labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
         unselectedLabelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w400),
+        padding: EdgeInsets.zero,
         tabs: [
-          Tab(text: 'Pending (${_pendingClients.length})'),
-          const Tab(text: 'Active'),
-          const Tab(text: 'Inactive'),
-          const Tab(text: 'Flagged'),
+          Tab(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text('Pending (${_pendingClients.length})'),
+            ),
+          ),
+          const Tab(child: Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Text('Active'))),
+          const Tab(child: Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Text('Inactive'))),
+          const Tab(child: Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Text('Flagged'))),
         ],
       ),
     );
   }
 
   Widget _buildFlaggedAccountsTab() {
-    return const Center(child: Text('No flagged accounts'));
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.flag_outlined, size: 28, color: Colors.grey[400]),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No flagged accounts',
+            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Flagged clients will appear here',
+            style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
+          ),
+        ],
+      ),
+    );
   }
 
   void _handleClientSelection(String clientId, bool selected) {

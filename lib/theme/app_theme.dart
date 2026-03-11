@@ -47,6 +47,13 @@ class AppTheme {
   static const Color dialogLight = Color(0xFFFFFFFF);
   static const Color dialogDark = Color(0xFF2D2D2D);
 
+  // Admin panel design tokens
+  static const Color adminSidebar = Color(0xFF1E3A8A);
+  static const Color adminSidebarSelected = Color(0xFF2563EB);
+  static const double sidebarWidth = 260.0;
+  static const double cardRadius = 12.0;
+  static const double pagePadding = 24.0;
+
   // Minimal shadow and divider colors
   static const Color shadowLight = Color(0x0A000000);
   static const Color shadowDark = Color(0x0AFFFFFF);
