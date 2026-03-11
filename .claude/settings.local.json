@@ -9,7 +9,19 @@
       "Bash(flutter run -d chrome --web-port 5000)",
       "Bash(flutter doctor -v)",
       "Read(//c/Users/Vicky/AppData/Local/Android/sdk/platform-tools/**)",
-      "Bash(./adb.exe devices)"
+      "Bash(./adb.exe devices)",
+      "Bash(flutter run -d emulator-5554)",
+      "Bash(flutter build apk --release)",
+      "Bash(flutter analyze --no-fatal-warnings)",
+      "Bash(adb devices)",
+      "Bash(\"/c/Users/Vicky/AppData/Local/Android/sdk/platform-tools/adb\" devices)",
+      "Bash(npm run build)",
+      "Bash(firebase --version)",
+      "Bash(firebase deploy --only hosting)",
+      "Bash(powershell -Command \"Remove-Item -Recurse -Force admin_web\")",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(powershell -Command \"Remove-Item -Recurse -Force ''C:\\\\Users\\\\Vicky\\\\DB Antigravity\\\\dietician_babu\\\\admin_web''\")",
+      "Bash(powershell -Command \"& { taskkill /F /IM node.exe; Start-Sleep -Seconds 2; Remove-Item -Recurse -Force ''C:\\\\Users\\\\Vicky\\\\DB Antigravity\\\\dietician_babu\\\\admin_web''; Write-Output ''deleted'' }\")"
     ]
   }
 }

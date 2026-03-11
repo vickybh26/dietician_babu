@@ -1,16 +1,5 @@
 {
-  "hosting": {
-    "public": "admin_web/out",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
+  "firestore": {
+    "indexes": "firestore.indexes.json"
   }
 }
