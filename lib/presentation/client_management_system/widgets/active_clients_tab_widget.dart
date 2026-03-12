@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../routes/app_routes.dart';
 
 class ActiveClientsTabWidget extends StatelessWidget {
   final List<Map<String, dynamic>> clients;
@@ -139,7 +140,7 @@ class ActiveClientsTabWidget extends StatelessWidget {
           Expanded(flex: 2, child: Text('Subscription', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.grey[700], fontSize: 14))),
           Expanded(flex: 1, child: Text('Targets', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.grey[700], fontSize: 14))),
           Expanded(flex: 1, child: Text('Status', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.grey[700], fontSize: 14))),
-          const SizedBox(width: 120),
+          const SizedBox(width: 160),
         ],
       ),
     );
@@ -209,10 +210,18 @@ class ActiveClientsTabWidget extends StatelessWidget {
           ),
           
           SizedBox(
-            width: 120,
+            width: 160,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                // View full profile — Phase 1
+                Builder(builder: (context) => IconButton(
+                  onPressed: () => Navigator.pushNamed(
+                      context, AppRoutes.clientProfile, arguments: uid),
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  color: const Color(0xFF1976D2),
+                  tooltip: 'View Full Profile',
+                )),
                 IconButton(
                   onPressed: () => onViewDetails(uid),
                   icon: Icon(hasNudge ? Icons.edit_notifications : Icons.settings, size: 18),

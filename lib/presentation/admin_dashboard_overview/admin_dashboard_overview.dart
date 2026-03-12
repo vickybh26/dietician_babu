@@ -139,12 +139,18 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
   Widget _buildStatsGrid() {
     final pending = _analytics['pendingApprovals'] ?? 0;
     final growth = _analytics['revenueGrowth'] as double? ?? 0.0;
+    final clientsWithPlans = _analytics['clientsWithPlans'] ?? 0;
+    final checkinsThisMonth = _analytics['checkinsThisMonth'] ?? 0;
+    final totalClients = _analytics['totalClients'] ?? 0;
+    final planCoverage = totalClients > 0
+        ? (clientsWithPlans / totalClients * 100).toStringAsFixed(0)
+        : '0';
 
     final cards = [
       StatsCardWidget(
         title: 'Active Subscriptions',
         value: '${_analytics['activeSubscriptions'] ?? 0}',
-        change: growth >= 0 ? '+$growth%' : '$growth%',
+        change: growth >= 0 ? '+${growth.toStringAsFixed(1)}%' : '${growth.toStringAsFixed(1)}%',
         changeColor: growth >= 0 ? Colors.green : Colors.red,
         icon: Icons.people_alt_outlined,
         iconColor: const Color(0xFF2E7D32),
@@ -167,24 +173,45 @@ class _AdminDashboardOverviewState extends State<AdminDashboardOverview> {
       ),
       StatsCardWidget(
         title: 'Total Clients',
-        value: '${_analytics['totalClients'] ?? 0}',
+        value: '$totalClients',
         change: 'Registered',
         changeColor: Colors.grey,
         icon: Icons.group_outlined,
         iconColor: const Color(0xFFE91E63),
       ),
+      // Phase 1 new KPIs
+      StatsCardWidget(
+        title: 'Clients with Plans',
+        value: '$clientsWithPlans',
+        change: '$planCoverage% coverage',
+        changeColor: clientsWithPlans > 0 ? Colors.green : Colors.grey,
+        icon: Icons.restaurant_menu_outlined,
+        iconColor: const Color(0xFF00897B),
+      ),
+      StatsCardWidget(
+        title: 'Check-ins This Month',
+        value: '$checkinsThisMonth',
+        change: 'From clients',
+        changeColor: Colors.purple,
+        icon: Icons.check_circle_outline,
+        iconColor: const Color(0xFF7B1FA2),
+      ),
     ];
 
     return LayoutBuilder(
       builder: (ctx, constraints) {
-        final cols = constraints.maxWidth >= 900 ? 4 : 2;
+        final cols = constraints.maxWidth >= 1200
+            ? 6
+            : constraints.maxWidth >= 900
+                ? 3
+                : 2;
         return GridView.count(
           crossAxisCount: cols,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 1.7,
+          childAspectRatio: 1.6,
           children: cards,
         );
       },

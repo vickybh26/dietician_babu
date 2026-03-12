@@ -135,6 +135,16 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get messages =>
       db.collection('messages');
 
+  // ─── Phase 1: Subcollection helpers ───────────────────────────────────────
+
+  /// Progress entries: clients/{uid}/progressEntries
+  CollectionReference<Map<String, dynamic>> progressEntries(String uid) =>
+      clients.doc(uid).collection('progressEntries');
+
+  /// Admin notes: clients/{uid}/notes
+  CollectionReference<Map<String, dynamic>> clientNotes(String uid) =>
+      clients.doc(uid).collection('notes');
+
   /// Create or merge user doc after login.
   /// Always runs — safe to call on every login because it only writes missing fields.
   Future<void> upsertUser(User user, {bool onboardingComplete = false}) async {

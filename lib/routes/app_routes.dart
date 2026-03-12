@@ -18,6 +18,7 @@ import '../presentation/diet_plans_management/diet_plans_management.dart';
 import '../presentation/sales_analytics/sales_analytics.dart';
 import '../presentation/subscriptions_management/subscriptions_management.dart';
 import '../presentation/admin_settings/admin_settings.dart';
+import '../presentation/client_profile/client_profile_screen.dart';
 
 class AppRoutes {
   // Common Routes
@@ -39,6 +40,7 @@ class AppRoutes {
   // Admin Web Routes
   static const String adminDashboardOverview = '/admin-dashboard-overview';
   static const String clientManagementSystem = '/client-management-system';
+  static const String clientProfile = '/client-profile';             // Phase 1
   static const String adminDietPlanCreator = '/admin-diet-plan-creator';
   static const String dietPlansManagement = '/diet-plans-management';
   static const String salesAnalytics = '/sales-analytics';
@@ -59,6 +61,10 @@ class AppRoutes {
         initial: (context) => const AdminDashboardOverview(), // Web starts at Admin Dashboard
         adminDashboardOverview: (context) => const AdminDashboardOverview(),
         clientManagementSystem: (context) => const ClientManagementSystem(),
+        clientProfile: (context) {
+          final uid = ModalRoute.of(context)!.settings.arguments as String;
+          return ClientProfileScreen(clientId: uid);
+        },
         adminDietPlanCreator: (context) => const AdminDietPlanCreator(),
         dietPlansManagement: (context) => const DietPlansManagement(),
         salesAnalytics: (context) => const SalesAnalytics(),

@@ -51,10 +51,31 @@ class AdminDashboardService {
       final avgOrderValue =
           currentPaymentCount > 0 ? currentRevenue / currentPaymentCount : 0.0;
 
-      // 4. Correct Pending Approvals Sync (Checks for status 'none' or 'pending')
+      // 4. Pending Approvals (status 'none' or 'pending')
       final pendingClients = await _fs.clients
           .where('subscriptionStatus', whereIn: ['none', 'pending'])
           .get();
+
+      // 5. Phase 1: Clients with at least one active plan
+      int clientsWithPlans = 0;
+      try {
+        final activePlans = await _fs.plans
+            .where('isActive', isEqualTo: true)
+            .get();
+        final uidsWithPlan =
+            activePlans.docs.map((d) => d.data()['clientId']).toSet();
+        clientsWithPlans = uidsWithPlan.length;
+      } catch (_) {}
+
+      // 6. Phase 1: Weekly check-ins this month
+      int checkinsThisMonth = 0;
+      try {
+        final checkinSnap = await _fs.weeklyUpdates
+            .where('submittedAt',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfCurrentMonth))
+            .get();
+        checkinsThisMonth = checkinSnap.docs.length;
+      } catch (_) {}
 
       return {
         'activeSubscriptions': activeSubs.docs.length,
@@ -63,6 +84,8 @@ class AdminDashboardService {
         'pendingApprovals': pendingClients.docs.length,
         'revenueGrowth': revenueGrowth,
         'avgOrderValue': avgOrderValue,
+        'clientsWithPlans': clientsWithPlans,     // Phase 1
+        'checkinsThisMonth': checkinsThisMonth,   // Phase 1
       };
     } catch (e) {
       throw Exception('Failed to fetch dashboard analytics: $e');
@@ -104,6 +127,27 @@ class AdminDashboardService {
           'priority': 'medium',
         });
       }
+
+      // Phase 1: Recent client signups
+      try {
+        final recentSignups = await _fs.users
+            .where('role', isEqualTo: 'client')
+            .orderBy('createdAt', descending: true)
+            .limit(3)
+            .get();
+        for (final doc in recentSignups.docs) {
+          final data = doc.data();
+          final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+          activities.add({
+            'type': 'client',
+            'message':
+                '${data['name'] ?? data['email'] ?? 'New client'} joined',
+            'timestamp': createdAt?.toIso8601String() ?? '',
+            'priority': 'low',
+            'clientId': doc.id,
+          });
+        }
+      } catch (_) {}
 
       activities.sort((a, b) => b['timestamp'].compareTo(a['timestamp']));
       return activities.take(10).toList();
