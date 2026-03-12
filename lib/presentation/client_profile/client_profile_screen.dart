@@ -8,6 +8,10 @@ import 'tabs/personal_info_tab.dart';
 import 'tabs/diet_plans_tab.dart';
 import 'tabs/progress_tracker_tab.dart';
 import 'tabs/notes_tab.dart';
+import 'tabs/appointments_tab.dart';
+import 'tabs/food_diary_tab.dart';
+import 'tabs/lab_reports_tab.dart';
+import 'tabs/documents_tab.dart';
 
 /// Full-page client profile with 4 tabs.
 /// Receives [clientId] as a route argument: Navigator.pushNamed(ctx, AppRoutes.clientProfile, arguments: uid)
@@ -31,6 +35,10 @@ class _ClientProfileScreenState extends State<ClientProfileScreen>
     _TabDef(Icons.restaurant_menu_outlined, 'Diet Plans'),
     _TabDef(Icons.show_chart_outlined, 'Progress'),
     _TabDef(Icons.notes_outlined, 'Notes'),
+    _TabDef(Icons.calendar_today_outlined, 'Appointments'),
+    _TabDef(Icons.dinner_dining_outlined, 'Food Diary'),
+    _TabDef(Icons.science_outlined, 'Lab Reports'),
+    _TabDef(Icons.folder_outlined, 'Documents'),
   ];
 
   @override
@@ -286,6 +294,10 @@ class _ClientProfileScreenState extends State<ClientProfileScreen>
         DietPlansTab(clientId: widget.clientId),
         ProgressTrackerTab(clientId: widget.clientId),
         NotesTab(clientId: widget.clientId),
+        AppointmentsTab(clientId: widget.clientId),
+        FoodDiaryTab(clientId: widget.clientId),
+        LabReportsTab(clientId: widget.clientId),
+        DocumentsTab(clientId: widget.clientId),
       ],
     );
   }

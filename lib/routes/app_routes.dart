@@ -19,6 +19,10 @@ import '../presentation/sales_analytics/sales_analytics.dart';
 import '../presentation/subscriptions_management/subscriptions_management.dart';
 import '../presentation/admin_settings/admin_settings.dart';
 import '../presentation/client_profile/client_profile_screen.dart';
+import '../presentation/appointments/appointments_screen.dart';
+import '../presentation/food_catalogue/food_catalogue_screen.dart';
+import '../presentation/member_analytics/member_analytics_screen.dart';
+import '../presentation/restore_requests/restore_requests_screen.dart';
 
 class AppRoutes {
   // Common Routes
@@ -36,6 +40,7 @@ class AppRoutes {
   static const String weeklyCheckin = '/weekly-checkin';
   static const String dietPlanViewer = '/diet-plan-viewer';
   static const String subscriptionPlans = '/subscription-plans';
+  static const String appointments = '/appointments';
 
   // Admin Web Routes
   static const String adminDashboardOverview = '/admin-dashboard-overview';
@@ -46,6 +51,9 @@ class AppRoutes {
   static const String salesAnalytics = '/sales-analytics';
   static const String subscriptionsManagement = '/subscriptions-management';
   static const String adminSettings = '/admin-settings';
+  static const String foodCatalogue = '/food-catalogue';
+  static const String memberAnalytics = '/member-analytics';
+  static const String restoreRequests = '/restore-requests';
 
   static Map<String, WidgetBuilder> get routes {
     // Basic routes available to both
@@ -70,6 +78,9 @@ class AppRoutes {
         salesAnalytics: (context) => const SalesAnalytics(),
         subscriptionsManagement: (context) => const SubscriptionsManagement(),
         adminSettings: (context) => const AdminSettings(),
+        foodCatalogue: (context) => const FoodCatalogueScreen(),
+        memberAnalytics: (context) => const MemberAnalyticsScreen(),
+        restoreRequests: (context) => const RestoreRequestsScreen(),
       };
     } else {
       // MOBILE ONLY: Only return Client routes
@@ -85,6 +96,7 @@ class AppRoutes {
         weeklyCheckin: (context) => const WeeklyCheckIn(),
         dietPlanViewer: (context) => const DietPlanViewer(),
         subscriptionPlans: (context) => const SubscriptionPlans(),
+        appointments: (context) => const AppointmentsScreen(),
       };
     }
   }

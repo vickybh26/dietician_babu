@@ -185,9 +185,9 @@ class _PlanCard extends StatelessWidget {
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(
-                    type,
-                    style: const TextStyle(
+                  child: const Text(
+                    'Diet Plan',
+                    style: TextStyle(
                         color: Colors.white,
                         fontSize: 11,
                         fontWeight: FontWeight.w600),
@@ -272,7 +272,7 @@ class _PlanCard extends StatelessWidget {
   }
 }
 
-// ─── Structured (AI-generated) plan card ─────────────────────────────────────
+// ─── Structured plan card ────────────────────────────────────────────────────
 
 class _StructuredPlanCard extends StatefulWidget {
   final Map<String, dynamic> plan;
@@ -346,7 +346,8 @@ class _StructuredPlanCardState extends State<_StructuredPlanCard> {
             padding: EdgeInsets.all(4.w),
             child: Row(
               children: [
-                const Text('🤖', style: TextStyle(fontSize: 22)),
+                const Icon(Icons.restaurant_menu_rounded,
+                    color: Colors.white, size: 22),
                 SizedBox(width: 2.w),
                 Expanded(
                   child: Column(

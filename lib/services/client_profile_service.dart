@@ -198,4 +198,130 @@ class ClientProfileService {
       return 0;
     }
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Phase 2 — Appointments
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Stream appointments for a specific client, ordered by date descending.
+  static Stream<List<Map<String, dynamic>>> streamAppointments(String uid) {
+    return _fs.appointments
+        .where('clientId', isEqualTo: uid)
+        .orderBy('date', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) {
+              final data = d.data();
+              data['id'] = d.id;
+              return data;
+            }).toList());
+  }
+
+  static Future<void> addAppointment(
+      String uid, Map<String, dynamic> data) async {
+    await _fs.appointments.add({
+      'clientId': uid,
+      'createdAt': FieldValue.serverTimestamp(),
+      ...data,
+    });
+  }
+
+  static Future<void> updateAppointment(
+      String appointmentId, Map<String, dynamic> data) async {
+    await _fs.appointments.doc(appointmentId).update(data);
+  }
+
+  static Future<void> deleteAppointment(String appointmentId) async {
+    await _fs.appointments.doc(appointmentId).delete();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Phase 2 — Food Diary
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Stream food log entries, newest first.
+  static Stream<List<Map<String, dynamic>>> streamFoodLogs(String uid) {
+    return _fs.foodLogs(uid)
+        .orderBy('date', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) {
+              final data = d.data();
+              data['id'] = d.id;
+              return data;
+            }).toList());
+  }
+
+  static Future<void> addFoodLog(
+      String uid, Map<String, dynamic> data) async {
+    await _fs.foodLogs(uid).add({
+      'loggedAt': FieldValue.serverTimestamp(),
+      'submittedBy': 'admin',
+      ...data,
+    });
+  }
+
+  static Future<void> deleteFoodLog(String uid, String logId) async {
+    await _fs.foodLogs(uid).doc(logId).delete();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Phase 2 — Lab Reports
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Stream lab reports, newest first.
+  static Stream<List<Map<String, dynamic>>> streamLabReports(String uid) {
+    return _fs.labReports(uid)
+        .orderBy('date', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) {
+              final data = d.data();
+              data['id'] = d.id;
+              return data;
+            }).toList());
+  }
+
+  static Future<void> addLabReport(
+      String uid, Map<String, dynamic> data) async {
+    await _fs.labReports(uid).add({
+      'uploadedAt': FieldValue.serverTimestamp(),
+      ...data,
+    });
+  }
+
+  static Future<void> updateLabReport(
+      String uid, String reportId, Map<String, dynamic> data) async {
+    await _fs.labReports(uid).doc(reportId).update(data);
+  }
+
+  static Future<void> deleteLabReport(String uid, String reportId) async {
+    await _fs.labReports(uid).doc(reportId).delete();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Phase 2 — Documents
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Stream documents, newest first.
+  static Stream<List<Map<String, dynamic>>> streamDocuments(String uid) {
+    return _fs.clientDocuments(uid)
+        .orderBy('uploadedAt', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) {
+              final data = d.data();
+              data['id'] = d.id;
+              return data;
+            }).toList());
+  }
+
+  static Future<void> addDocument(
+      String uid, Map<String, dynamic> data) async {
+    await _fs.clientDocuments(uid).add({
+      'uploadedAt': FieldValue.serverTimestamp(),
+      'uploadedBy': 'admin',
+      ...data,
+    });
+  }
+
+  static Future<void> deleteDocument(String uid, String docId) async {
+    await _fs.clientDocuments(uid).doc(docId).delete();
+  }
 }

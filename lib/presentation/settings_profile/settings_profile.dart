@@ -1128,8 +1128,8 @@ class _SettingsProfileState extends State<SettingsProfile> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Version: 1.3.0'),
-            const Text('Build: 2026.03.08'),
+            const Text('Version: 1.3.1'),
+            const Text('Build: 2026.03.12'),
             SizedBox(height: 2.h),
             const Text('Your personalized diet coaching companion'),
             SizedBox(height: 2.h),

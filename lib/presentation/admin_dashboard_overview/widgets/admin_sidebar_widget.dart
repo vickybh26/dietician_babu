@@ -13,7 +13,17 @@ class AdminSidebarWidget extends StatefulWidget {
 }
 
 class _AdminSidebarWidgetState extends State<AdminSidebarWidget> {
-  String _selectedItem = 'Dashboard';
+  // Derive active item from the current route so every screen shows
+  // the correct highlight without manual state tracking.
+  String _getActiveTitle(BuildContext context) {
+    final routeName = ModalRoute.of(context)?.settings.name ?? '';
+    for (final section in _sections) {
+      for (final item in section.items) {
+        if (item.route == routeName) return item.title;
+      }
+    }
+    return 'Dashboard'; // fallback
+  }
 
   // Structured sections — add/remove items here to update the sidebar.
   static final _sections = [
@@ -23,18 +33,21 @@ class _AdminSidebarWidgetState extends State<AdminSidebarWidget> {
     _Section('CLIENTS', [
       _Item('Client Management', Icons.people_outlined, '/client-management-system'),
       _Item('Subscriptions', Icons.card_membership_outlined, '/subscriptions-management'),
+      _Item('Restore Requests', Icons.restore_rounded, '/restore-requests'),
     ]),
     _Section('CONTENT', [
       _Item('Diet Plans', Icons.restaurant_menu_outlined, '/diet-plans-management'),
     ]),
     _Section('BUSINESS', [
       _Item('Sales Analytics', Icons.bar_chart_outlined, '/sales-analytics'),
+      _Item('Member Analytics', Icons.groups_rounded, '/member-analytics'),
       _Item('Settings', Icons.settings_outlined, '/admin-settings'),
     ]),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final activeTitle = _getActiveTitle(context);
     return Container(
       width: 260,
       height: double.infinity,
@@ -54,7 +67,7 @@ class _AdminSidebarWidgetState extends State<AdminSidebarWidget> {
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              children: _buildSectionedMenu(),
+              children: _buildSectionedMenu(activeTitle),
             ),
           ),
           _buildUserFooter(),
@@ -113,7 +126,7 @@ class _AdminSidebarWidgetState extends State<AdminSidebarWidget> {
     );
   }
 
-  List<Widget> _buildSectionedMenu() {
+  List<Widget> _buildSectionedMenu(String activeTitle) {
     final widgets = <Widget>[];
     for (final section in _sections) {
       // Section label
@@ -133,14 +146,14 @@ class _AdminSidebarWidgetState extends State<AdminSidebarWidget> {
       );
       // Items in this section
       for (final item in section.items) {
-        widgets.add(_buildMenuItem(item));
+        widgets.add(_buildMenuItem(item, activeTitle));
       }
     }
     return widgets;
   }
 
-  Widget _buildMenuItem(_Item item) {
-    final isSelected = _selectedItem == item.title;
+  Widget _buildMenuItem(_Item item, String activeTitle) {
+    final isSelected = activeTitle == item.title;
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
@@ -238,8 +251,6 @@ class _AdminSidebarWidgetState extends State<AdminSidebarWidget> {
   }
 
   void _selectMenuItem(_Item item) {
-    setState(() => _selectedItem = item.title);
-
     final scaffold = Scaffold.maybeOf(context);
     if (scaffold != null && scaffold.isDrawerOpen) {
       scaffold.closeDrawer();
@@ -261,8 +272,14 @@ class _AdminSidebarWidgetState extends State<AdminSidebarWidget> {
         case '/sales-analytics':
           Navigator.pushNamed(context, AppRoutes.salesAnalytics);
           break;
+        case '/member-analytics':
+          Navigator.pushNamed(context, AppRoutes.memberAnalytics);
+          break;
         case '/subscriptions-management':
           Navigator.pushNamed(context, AppRoutes.subscriptionsManagement);
+          break;
+        case '/restore-requests':
+          Navigator.pushNamed(context, AppRoutes.restoreRequests);
           break;
         case '/admin-settings':
           Navigator.pushNamed(context, AppRoutes.adminSettings);

@@ -37,7 +37,7 @@ class _SubscriptionsManagementState extends State<SubscriptionsManagement> {
         final clientData = doc.data();
         final subStatus =
             clientData['subscriptionStatus'] as String? ?? 'none';
-        if (subStatus == 'none') continue;
+        if (subStatus == 'none' || subStatus == 'inactive') continue;
 
         final userSnap = await _fs.users.doc(doc.id).get();
         final userData = userSnap.data() ?? {};
@@ -48,8 +48,15 @@ class _SubscriptionsManagementState extends State<SubscriptionsManagement> {
 
         final now = DateTime.now();
         String status = subStatus;
-        if (subStatus == 'active' && expiresAt != null && expiresAt.isBefore(now)) {
+        // Normalise legacy 'approved' → 'active' (written by old restore-request code)
+        if (status == 'approved') {
+          status = 'active';
+          _fs.clients.doc(doc.id).update({'subscriptionStatus': 'active'});
+        }
+        if (status == 'active' && expiresAt != null && expiresAt.isBefore(now)) {
           status = 'expired';
+          // Sync back to Firestore so dashboard KPI stays accurate
+          _fs.clients.doc(doc.id).update({'subscriptionStatus': 'expired'});
         }
 
         subs.add({
@@ -71,7 +78,7 @@ class _SubscriptionsManagementState extends State<SubscriptionsManagement> {
       }
 
       subs.sort((a, b) {
-        const order = {'active': 0, 'paused': 1, 'expired': 2, 'inactive': 3};
+        const order = {'active': 0, 'paused': 1, 'expired': 2};
         return (order[a['status']] ?? 9)
             .compareTo(order[b['status']] ?? 9);
       });
@@ -338,7 +345,7 @@ class _SubscriptionsManagementState extends State<SubscriptionsManagement> {
     if (confirm == true) {
       await _fs.clients
           .doc(uid)
-          .set({'subscriptionStatus': 'inactive'}, SetOptions(merge: true));
+          .set({'subscriptionStatus': 'expired'}, SetOptions(merge: true));
       _loadSubscriptions();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -459,7 +466,7 @@ class _SubscriptionsManagementState extends State<SubscriptionsManagement> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
-          children: ['All', 'Active', 'Paused', 'Expired', 'Inactive']
+          children: ['All', 'Active', 'Paused', 'Expired']
               .map((f) => Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(

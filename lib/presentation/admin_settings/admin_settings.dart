@@ -104,7 +104,7 @@ class _AdminSettingsState extends State<AdminSettings> {
                     const Divider(height: 1, indent: 56),
                     _buildInfoRow(Icons.business_outlined, 'Business', 'Dietician Babu, Indore'),
                     const Divider(height: 1, indent: 56),
-                    _buildInfoRow(Icons.tag_outlined, 'Version', '1.3.0'),
+                    _buildInfoRow(Icons.tag_outlined, 'Version', '1.3.1'),
                   ]),
                   const SizedBox(height: 32),
                   _buildDangerZone(),

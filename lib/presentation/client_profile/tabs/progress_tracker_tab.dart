@@ -237,7 +237,7 @@ class _ProgressTrackerTabState extends State<ProgressTrackerTab> {
                     ),
                     dotData: FlDotData(
                       show: spots.length <= 15,
-                      getDotPainter: (spot, %, bar, index) =>
+                      getDotPainter: (spot, percent, bar, index) =>
                           FlDotCirclePainter(
                               radius: 3,
                               color: Colors.white,

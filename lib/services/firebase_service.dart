@@ -145,6 +145,38 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> clientNotes(String uid) =>
       clients.doc(uid).collection('notes');
 
+  // ─── Paid Members (imported from Excel) ───────────────────────────────────
+
+  /// All individual paid member records (3 500+ docs)
+  CollectionReference<Map<String, dynamic>> get paidMembers =>
+      db.collection('paidMembers');
+
+  /// Pre-aggregated analytics stats (7 small docs)
+  CollectionReference<Map<String, dynamic>> get paidMembersStats =>
+      db.collection('paidMembersStats');
+
+  /// Restore requests submitted by clients
+  CollectionReference<Map<String, dynamic>> get restoreRequests =>
+      db.collection('restoreRequests');
+
+  // ─── Phase 2: Subcollection helpers ───────────────────────────────────────
+
+  /// Top-level appointments collection (clientId field links to client)
+  CollectionReference<Map<String, dynamic>> get appointments =>
+      db.collection('appointments');
+
+  /// Food diary: clients/{uid}/foodLogs
+  CollectionReference<Map<String, dynamic>> foodLogs(String uid) =>
+      clients.doc(uid).collection('foodLogs');
+
+  /// Lab reports: clients/{uid}/labReports
+  CollectionReference<Map<String, dynamic>> labReports(String uid) =>
+      clients.doc(uid).collection('labReports');
+
+  /// Documents: clients/{uid}/documents
+  CollectionReference<Map<String, dynamic>> clientDocuments(String uid) =>
+      clients.doc(uid).collection('documents');
+
   /// Create or merge user doc after login.
   /// Always runs — safe to call on every login because it only writes missing fields.
   Future<void> upsertUser(User user, {bool onboardingComplete = false}) async {

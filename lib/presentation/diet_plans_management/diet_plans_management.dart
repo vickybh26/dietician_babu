@@ -284,6 +284,17 @@ class _DietPlansManagementState extends State<DietPlansManagement> {
                   icon: const Icon(Icons.refresh),
                   tooltip: 'Refresh'),
               const SizedBox(width: 4),
+              // Food Catalogue shortcut
+              IconButton(
+                onPressed: () => Navigator.pushNamed(
+                    context, AppRoutes.foodCatalogue),
+                icon: const Icon(Icons.restaurant_menu_outlined),
+                tooltip: 'Food Catalogue',
+                style: IconButton.styleFrom(
+                  foregroundColor: const Color(0xFF1976D2),
+                ),
+              ),
+              const SizedBox(width: 4),
               ElevatedButton.icon(
                 onPressed: () => Navigator.pushNamed(
                         context, AppRoutes.adminDietPlanCreator)

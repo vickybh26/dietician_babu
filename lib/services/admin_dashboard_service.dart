@@ -6,10 +6,17 @@ class AdminDashboardService {
 
   static Future<Map<String, dynamic>> getDashboardAnalytics() async {
     try {
-      // 1. Active Subscriptions
-      final activeSubs = await _fs.clients
+      // 1. Active Subscriptions — query then filter by expiry in Dart
+      //    (Firestore doesn't update subscriptionStatus on expiry automatically)
+      final activeSubsSnap = await _fs.clients
           .where('subscriptionStatus', isEqualTo: 'active')
           .get();
+      final now2 = DateTime.now();
+      final activeSubCount = activeSubsSnap.docs.where((doc) {
+        final expiresAt = doc.data()['subscriptionExpiresAt'];
+        if (expiresAt is! Timestamp) return true; // no expiry = unlimited
+        return expiresAt.toDate().isAfter(now2);
+      }).length;
 
       // 2. Total Clients
       final allClients = await _fs.users
@@ -78,7 +85,7 @@ class AdminDashboardService {
       } catch (_) {}
 
       return {
-        'activeSubscriptions': activeSubs.docs.length,
+        'activeSubscriptions': activeSubCount,
         'totalClients': allClients.docs.length,
         'totalRevenue': currentRevenue,
         'pendingApprovals': pendingClients.docs.length,

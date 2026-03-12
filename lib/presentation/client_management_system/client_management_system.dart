@@ -8,6 +8,7 @@ import 'widgets/pending_approvals_tab_widget.dart';
 import 'widgets/active_clients_tab_widget.dart';
 import 'widgets/client_detail_modal_widget.dart';
 import 'widgets/client_search_filter_widget.dart';
+import 'widgets/members_tab_widget.dart';
 
 class ClientManagementSystem extends StatefulWidget {
   const ClientManagementSystem({super.key});
@@ -25,7 +26,6 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
   
   List<Map<String, dynamic>> _pendingClients = [];
   List<Map<String, dynamic>> _activeClients = [];
-  List<Map<String, dynamic>> _inactiveClients = [];
   Map<String, List<String>> _clientNudges = {};
   List<String> _selectedClients = [];
 
@@ -33,6 +33,7 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _tabController.addListener(() => setState(() {}));
     _loadClientData();
   }
 
@@ -50,15 +51,13 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
       final results = await Future.wait([
         ClientManagementService.getPendingApprovals(),
         ClientManagementService.getAllClients(status: 'active'),
-        ClientManagementService.getAllClients(status: 'inactive'),
         ClientManagementService.getNudges(),
       ]);
-      
+
       setState(() {
         _pendingClients = results[0] as List<Map<String, dynamic>>;
         _activeClients = results[1] as List<Map<String, dynamic>>;
-        _inactiveClients = results[2] as List<Map<String, dynamic>>;
-        _clientNudges = results[3] as Map<String, List<String>>;
+        _clientNudges = results[2] as Map<String, List<String>>;
         _isLoading = false;
       });
     } catch (e) {
@@ -79,16 +78,18 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
         children: [
           _buildHeader(),
 
-          ClientSearchFilterWidget(
-            searchQuery: _searchQuery,
-            selectedFilter: _selectedFilter,
-            onSearchChanged: (query) {
-              setState(() => _searchQuery = query);
-            },
-            onFilterChanged: (filter) {
-              setState(() => _selectedFilter = filter);
-            },
-          ),
+          // Hide search/filter bar on Members tab (index 3 — it has its own search)
+          if (_tabController.index < 3)
+            ClientSearchFilterWidget(
+              searchQuery: _searchQuery,
+              selectedFilter: _selectedFilter,
+              onSearchChanged: (query) {
+                setState(() => _searchQuery = query);
+              },
+              onFilterChanged: (filter) {
+                setState(() => _selectedFilter = filter);
+              },
+            ),
 
           _buildTabBar(),
 
@@ -115,16 +116,8 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
                         onUpdateStatus: _updateClientStatus,
                         onSendMessage: _sendMessage,
                       ),
-                      ActiveClientsTabWidget(
-                        clients: _inactiveClients,
-                        searchQuery: _searchQuery,
-                        clientNudges: _clientNudges,
-                        isInactive: true,
-                        onViewDetails: _showClientDetails,
-                        onUpdateStatus: _updateClientStatus,
-                        onSendMessage: _sendMessage,
-                      ),
                       _buildFlaggedAccountsTab(),
+                      const MembersTabWidget(),
                     ],
                   ),
           ),
@@ -282,8 +275,8 @@ class _ClientManagementSystemState extends State<ClientManagementSystem>
             ),
           ),
           const Tab(child: Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Text('Active'))),
-          const Tab(child: Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Text('Inactive'))),
           const Tab(child: Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Text('Flagged'))),
+          const Tab(child: Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Text('Members'))),
         ],
       ),
     );

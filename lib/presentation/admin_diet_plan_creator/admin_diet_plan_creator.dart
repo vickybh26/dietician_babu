@@ -8,6 +8,25 @@ import '../../services/firebase_service.dart';
 import '../../config/secrets.dart';
 import '../../theme/app_theme.dart';
 
+// ─── Food Catalogue lookup ─────────────────────────────────────────────────
+
+/// Fetches all food items from `foodCatalogue` once and caches them.
+class _CatalogueCache {
+  static List<Map<String, dynamic>>? _items;
+
+  static Future<List<Map<String, dynamic>>> get() async {
+    if (_items != null) return _items!;
+    final snap = await FirebaseService.instance.db
+        .collection('foodCatalogue')
+        .orderBy('name')
+        .get();
+    _items = snap.docs.map((d) => {...d.data(), 'id': d.id}).toList();
+    return _items!;
+  }
+
+  static void invalidate() => _items = null;
+}
+
 // ─── Data models ──────────────────────────────────────────────────────────────
 
 class MealEntry {
@@ -1180,61 +1199,98 @@ class _DayCardState extends State<_DayCard> {
   }
 }
 
-class _MealSection extends StatelessWidget {
+// ─── _MealSection — ReorderableListView + catalogue autocomplete ───────────
+
+class _MealSection extends StatefulWidget {
   final String mealName;
   final List<MealEntry> items;
   final Color color;
   final VoidCallback onChanged;
-  const _MealSection(
-      {required this.mealName,
-      required this.items,
-      required this.color,
-      required this.onChanged});
+
+  const _MealSection({
+    required this.mealName,
+    required this.items,
+    required this.color,
+    required this.onChanged,
+  });
 
   @override
+  State<_MealSection> createState() => _MealSectionState();
+}
+
+class _MealSectionState extends State<_MealSection> {
+  @override
   Widget build(BuildContext context) {
+    final items = widget.items;
+    final color = widget.color;
+
     return Container(
-      margin: EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Section header
           Row(
             children: [
               Container(
-                width: 10,
-                height: 10,
-                decoration:
-                    BoxDecoration(color: color, shape: BoxShape.circle),
-              ),
-              SizedBox(width: 8),
-              Text(mealName,
+                  width: 10,
+                  height: 10,
+                  decoration:
+                      BoxDecoration(color: color, shape: BoxShape.circle)),
+              const SizedBox(width: 8),
+              Text(widget.mealName,
                   style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
                       color: color)),
             ],
           ),
-          SizedBox(height: 8),
-          ...items.map((item) => _EditableItem(
-                item: item,
-                accentColor: color,
-                onChanged: onChanged,
-              )),
+          const SizedBox(height: 8),
+
+          // Reorderable items
+          if (items.isNotEmpty)
+            ReorderableListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: items.length,
+              onReorder: (oldIndex, newIndex) {
+                setState(() {
+                  if (newIndex > oldIndex) newIndex--;
+                  final item = items.removeAt(oldIndex);
+                  items.insert(newIndex, item);
+                });
+                widget.onChanged();
+              },
+              itemBuilder: (context, index) {
+                return _EditableItem(
+                  key: ValueKey('${widget.mealName}_$index'),
+                  item: items[index],
+                  accentColor: color,
+                  onChanged: widget.onChanged,
+                  onDelete: () {
+                    setState(() => items.removeAt(index));
+                    widget.onChanged();
+                  },
+                );
+              },
+            ),
+
+          // Add item button
           GestureDetector(
             onTap: () {
-              items.add(MealEntry());
-              onChanged();
+              setState(() => items.add(MealEntry()));
+              widget.onChanged();
             },
             child: Container(
-              padding: EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Row(
                 children: [
                   Icon(Icons.add_circle_outline_rounded,
-                      size: 16, color: color.withValues(alpha: 0.6)),
-                  SizedBox(width: 4),
+                      size: 16, color: color.withValues(alpha: 0.7)),
+                  const SizedBox(width: 4),
                   Text('Add item',
                       style: TextStyle(
-                          color: color.withValues(alpha: 0.6),
+                          color: color.withValues(alpha: 0.7),
                           fontSize: 12,
                           fontWeight: FontWeight.w500)),
                 ],
@@ -1247,84 +1303,249 @@ class _MealSection extends StatelessWidget {
   }
 }
 
-class _EditableItem extends StatelessWidget {
+// ─── _EditableItem — inline fields + catalogue autocomplete ────────────────
+
+class _EditableItem extends StatefulWidget {
   final MealEntry item;
   final Color accentColor;
   final VoidCallback onChanged;
-  const _EditableItem(
-      {required this.item,
-      required this.accentColor,
-      required this.onChanged});
+  final VoidCallback onDelete;
+
+  const _EditableItem({
+    super.key,
+    required this.item,
+    required this.accentColor,
+    required this.onChanged,
+    required this.onDelete,
+  });
+
+  @override
+  State<_EditableItem> createState() => _EditableItemState();
+}
+
+class _EditableItemState extends State<_EditableItem> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _qtyCtrl;
+  late final TextEditingController _calCtrl;
+  List<Map<String, dynamic>> _suggestions = [];
+  bool _showSuggestions = false;
+  List<Map<String, dynamic>> _catalogue = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.item.name);
+    _qtyCtrl = TextEditingController(text: widget.item.quantity);
+    _calCtrl = TextEditingController(text: widget.item.calories);
+    _loadCatalogue();
+  }
+
+  Future<void> _loadCatalogue() async {
+    _catalogue = await _CatalogueCache.get();
+  }
+
+  void _onNameChanged(String v) {
+    widget.item.name = v;
+    widget.onChanged();
+    if (v.length < 2) {
+      setState(() {
+        _suggestions = [];
+        _showSuggestions = false;
+      });
+      return;
+    }
+    final q = v.toLowerCase();
+    final matches = _catalogue
+        .where((c) => (c['name'] as String).toLowerCase().contains(q))
+        .take(6)
+        .toList();
+    setState(() {
+      _suggestions = matches;
+      _showSuggestions = matches.isNotEmpty;
+    });
+  }
+
+  void _selectSuggestion(Map<String, dynamic> entry) {
+    final name = entry['name'] as String;
+    final qty = entry['defaultQty'] as String? ?? '';
+    final cal = entry['calories'] != null ? '${entry['calories']}' : '';
+    _nameCtrl.text = name;
+    _qtyCtrl.text = qty;
+    _calCtrl.text = cal;
+    widget.item.name = name;
+    widget.item.quantity = qty;
+    widget.item.calories = cal;
+    widget.onChanged();
+    setState(() => _showSuggestions = false);
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _qtyCtrl.dispose();
+    _calCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 8),
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: accentColor.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: accentColor.withValues(alpha: 0.15)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 5,
-            child: _inlineField(
-              value: item.name,
-              hint: 'Food item',
-              onChanged: (v) {
-                item.name = v;
-                onChanged();
-              },
+    final color = widget.accentColor;
+    return Column(
+      children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.15)),
+          ),
+          child: Row(
+            children: [
+              // Drag handle
+              Icon(Icons.drag_handle_rounded,
+                  size: 16, color: Colors.grey.shade400),
+              const SizedBox(width: 6),
+
+              // Name field (takes most space)
+              Expanded(
+                flex: 5,
+                child: TextField(
+                  controller: _nameCtrl,
+                  onChanged: _onNameChanged,
+                  style: const TextStyle(fontSize: 12),
+                  decoration: InputDecoration(
+                    hintText: 'Food item',
+                    hintStyle: TextStyle(
+                        fontSize: 11, color: Colors.grey.shade400),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 6),
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+
+              // Qty
+              Expanded(
+                flex: 3,
+                child: TextField(
+                  controller: _qtyCtrl,
+                  onChanged: (v) {
+                    widget.item.quantity = v;
+                    widget.onChanged();
+                  },
+                  style: const TextStyle(fontSize: 12),
+                  decoration: InputDecoration(
+                    hintText: 'Qty',
+                    hintStyle: TextStyle(
+                        fontSize: 11, color: Colors.grey.shade400),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 6),
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+
+              // Calories
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: _calCtrl,
+                  onChanged: (v) {
+                    widget.item.calories = v;
+                    widget.onChanged();
+                  },
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(fontSize: 12),
+                  decoration: InputDecoration(
+                    hintText: 'kcal',
+                    hintStyle: TextStyle(
+                        fontSize: 11, color: Colors.grey.shade400),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 6),
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+
+              // Delete button
+              GestureDetector(
+                onTap: widget.onDelete,
+                child: Icon(Icons.close_rounded,
+                    size: 16, color: Colors.grey.shade400),
+              ),
+            ],
+          ),
+        ),
+
+        // Catalogue suggestions dropdown
+        if (_showSuggestions)
+          Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color.withValues(alpha: 0.25)),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2)),
+              ],
+            ),
+            child: Column(
+              children: _suggestions.map((entry) {
+                final name = entry['name'] as String;
+                final qty = entry['defaultQty'] as String? ?? '';
+                final cal = entry['calories'];
+                final cat = entry['category'] as String? ?? '';
+                return InkWell(
+                  onTap: () => _selectSuggestion(entry),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    child: Row(
+                      children: [
+                        Icon(Icons.restaurant_outlined,
+                            size: 14, color: color.withValues(alpha: 0.6)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(name,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                        Text('$qty  •  ${cal ?? '—'} kcal',
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.grey.shade500)),
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(cat,
+                              style: TextStyle(
+                                  fontSize: 9,
+                                  color: color,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
           ),
-          SizedBox(width: 8),
-          Expanded(
-            flex: 3,
-            child: _inlineField(
-              value: item.quantity,
-              hint: 'Qty',
-              onChanged: (v) {
-                item.quantity = v;
-                onChanged();
-              },
-            ),
-          ),
-          SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: _inlineField(
-              value: item.calories,
-              hint: 'kcal',
-              onChanged: (v) {
-                item.calories = v;
-                onChanged();
-              },
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
-
-  Widget _inlineField(
-          {required String value,
-          required String hint,
-          required ValueChanged<String> onChanged}) =>
-      TextFormField(
-        initialValue: value,
-        onChanged: onChanged,
-        style: const TextStyle(fontSize: 12),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
-          isDense: true,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          border: InputBorder.none,
-        ),
-      );
 }
 
 class _PlanPickerPopup extends StatefulWidget {

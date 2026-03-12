@@ -55,17 +55,226 @@ class _DashboardHomeState extends State<DashboardHome>
   bool _stepPermissionDenied = false;
   StreamSubscription<StepCount>? _stepCountSubscription;
 
+  // ── WhatsApp plan restore banner ──────────────────────────────────────────
+  bool _showRestoreBanner = false;
+
   @override
   void initState() {
     super.initState();
     _loadUserData();
     _initPedometer();
+    _checkPaidMemberMatch();
   }
 
   @override
   void dispose() {
     _stepCountSubscription?.cancel();
     super.dispose();
+  }
+
+  // ── Paid-member match: show restore banner if email/phone exists ──────────
+  Future<void> _checkPaidMemberMatch() async {
+    try {
+      final uid = FirebaseService.instance.currentUser?.uid;
+      if (uid == null) return;
+
+      // Check if user already dismissed or sent a restore request
+      final userSnap = await FirebaseService.instance.users.doc(uid).get();
+      final restored = userSnap.data()?['restoreDismissed'] as bool? ?? false;
+      if (restored) return;
+
+      final alreadyRequested = userSnap.data()?['restoreRequested'] as bool? ?? false;
+      if (alreadyRequested) return;
+
+      final email = userSnap.data()?['email'] as String? ?? '';
+      final phone = (userSnap.data()?['phone'] as String? ?? '')
+          .replaceAll(RegExp(r'[^\d]'), '')  // strip +91, spaces, dashes
+          .replaceAll(RegExp(r'^91'), '');   // remove country code
+
+      // Search paidMembers by email
+      QuerySnapshot? matchSnap;
+      if (email.isNotEmpty) {
+        matchSnap = await FirebaseService.instance.paidMembers
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+      }
+
+      // If no email match, try by phone (last 10 digits)
+      if ((matchSnap == null || matchSnap.docs.isEmpty) && phone.length >= 10) {
+        final last10 = phone.substring(phone.length - 10);
+        matchSnap = await FirebaseService.instance.paidMembers
+            .where('mobile', isEqualTo: last10)
+            .limit(1)
+            .get();
+      }
+
+      if (matchSnap != null && matchSnap.docs.isNotEmpty) {
+        if (mounted) setState(() => _showRestoreBanner = true);
+      }
+    } catch (e) {
+      debugPrint('Restore check error: $e');
+    }
+  }
+
+  Future<void> _sendRestoreRequest() async {
+    try {
+      final uid = FirebaseService.instance.currentUser?.uid;
+      if (uid == null) return;
+
+      final userSnap = await FirebaseService.instance.users.doc(uid).get();
+      final name  = userSnap.data()?['name']  as String? ?? '';
+      final email = userSnap.data()?['email'] as String? ?? '';
+      final phone = userSnap.data()?['phone'] as String? ?? '';
+
+      // Write restore request doc
+      await FirebaseService.instance.db.collection('restoreRequests').add({
+        'uid':         uid,
+        'name':        name,
+        'email':       email,
+        'phone':       phone,
+        'status':      'pending',   // pending | approved | rejected
+        'planType':    '',          // admin fills: Regular / Super
+        'plansUsed':   0,           // admin fills
+        'plansPending': 0,          // admin fills
+        'requestedAt': FieldValue.serverTimestamp(),
+        'resolvedAt':  null,
+        'adminNotes':  '',
+      });
+
+      // Mark on user profile so banner doesn't show again
+      await FirebaseService.instance.users.doc(uid).update({
+        'restoreRequested': true,
+      });
+
+      if (mounted) {
+        setState(() => _showRestoreBanner = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Request sent! The admin will review and restore your plan shortly.'),
+            backgroundColor: Color(0xFF43A047),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Restore request error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not send request. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _dismissRestoreBanner() async {
+    try {
+      final uid = FirebaseService.instance.currentUser?.uid;
+      if (uid != null) {
+        await FirebaseService.instance.users.doc(uid).update({
+          'restoreDismissed': true,
+        });
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _showRestoreBanner = false);
+  }
+
+  // ── Restore banner widget ─────────────────────────────────────────────────
+  Widget _buildRestoreBanner() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1565C0), Color(0xFF1976D2)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1976D2).withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.restore_rounded, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Restore Diet Plan',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'If you have a running diet plan, tap here to restore it.',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              children: [
+                GestureDetector(
+                  onTap: _sendRestoreRequest,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Restore',
+                      style: TextStyle(
+                        color: Color(0xFF1565C0),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onTap: _dismissRestoreBanner,
+                  child: Text(
+                    'Dismiss',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _loadUserData() async {
@@ -110,28 +319,53 @@ class _DashboardHomeState extends State<DashboardHome>
           }
 
           country = data['country'] as String? ?? 'India';
+        }
 
-          final nc = data['nextConsultation'] as Map<String, dynamic>?;
-          if (nc != null && (nc['doctorName'] as String? ?? '').isNotEmpty) {
-            String dateDisplay = nc['date'] as String? ?? '';
-            try {
-              final dt = DateTime.parse(dateDisplay);
-              final today = DateTime.now();
-              final diff = DateTime(dt.year, dt.month, dt.day)
-                  .difference(DateTime(today.year, today.month, today.day))
-                  .inDays;
-              if (diff == 0) dateDisplay = 'Today';
-              else if (diff == 1) dateDisplay = 'Tomorrow';
-              else if (diff > 1) dateDisplay = '${dt.day}/${dt.month}/${dt.year}';
-              else dateDisplay = 'Past';
-            } catch (_) {}
+        // ── Load next upcoming appointment from the real appointments collection ──
+        // Query by clientId + date order only (avoids composite index requirement).
+        // Status filtering is done in Dart after fetch.
+        try {
+          final now = DateTime.now();
+          final apptSnap = await FirebaseService.instance.appointments
+              .where('clientId', isEqualTo: uid)
+              .orderBy('date')
+              .limit(20)
+              .get();
+
+          // Find the soonest appointment that is today or in the future,
+          // skipping cancelled / completed / no-show entries.
+          for (final doc in apptSnap.docs) {
+            final apptData = doc.data();
+            final rawDate = apptData['date'];
+            DateTime? apptDate;
+            if (rawDate is Timestamp) apptDate = rawDate.toDate();
+
+            if (apptDate == null) continue;
+            final apptDay = DateTime(apptDate.year, apptDate.month, apptDate.day);
+            final today = DateTime(now.year, now.month, now.day);
+            if (apptDay.isBefore(today)) continue; // past — skip
+
+            final status = (apptData['status'] as String? ?? 'scheduled').toLowerCase();
+            if (status == 'cancelled' || status == 'completed' || status == 'no-show') continue;
+
+            final diff = apptDay.difference(today).inDays;
+            String dateDisplay;
+            if (diff == 0) dateDisplay = 'Today';
+            else if (diff == 1) dateDisplay = 'Tomorrow';
+            else dateDisplay = '${apptDate.day}/${apptDate.month}/${apptDate.year}';
+
             consultation = {
-              'doctorName': nc['doctorName'],
+              'doctorName': 'Dietician',
               'date': dateDisplay,
-              'time': nc['time'] ?? '',
-              'type': nc['type'] ?? 'video',
+              'time': apptData['time'] as String? ?? '',
+              'type': apptData['type'] as String? ?? 'Consultation',
+              'id': doc.id,
+              'notes': apptData['notes'] as String? ?? '',
             };
+            break;
           }
+        } catch (_) {
+          // appointments query failed silently — no consultation shown
         }
 
         setState(() {
@@ -407,6 +641,9 @@ class _DashboardHomeState extends State<DashboardHome>
           children: [
             SizedBox(height: 8),
 
+            // WhatsApp plan restore banner (self-selecting — user decides if relevant)
+            if (_showRestoreBanner) _buildRestoreBanner(),
+
             _buildQuickActions(),
 
             // Daily Calorie Progress with Nudge
@@ -495,8 +732,18 @@ class _DashboardHomeState extends State<DashboardHome>
         ),
         BottomNavigationBarItem(
           icon: CustomIconWidget(
-            iconName: 'person',
+            iconName: 'calendar_today',
             color: _currentIndex == 1
+                ? AppTheme.lightTheme.colorScheme.primary
+                : AppTheme.lightTheme.colorScheme.onSurfaceVariant,
+            size: 24,
+          ),
+          label: 'Appointments',
+        ),
+        BottomNavigationBarItem(
+          icon: CustomIconWidget(
+            iconName: 'person',
+            color: _currentIndex == 2
                 ? AppTheme.lightTheme.colorScheme.primary
                 : AppTheme.lightTheme.colorScheme.onSurfaceVariant,
             size: 24,
@@ -685,6 +932,10 @@ class _DashboardHomeState extends State<DashboardHome>
         setState(() => _currentIndex = 0);
         break;
       case 1:
+        // Appointments screen
+        Navigator.pushNamed(context, '/appointments');
+        break;
+      case 2:
         // Profile — navigate to full Settings/Profile screen
         Navigator.pushNamed(context, '/settings-profile');
         break;
@@ -1005,10 +1256,47 @@ class _DashboardHomeState extends State<DashboardHome>
   }
 
   void _scheduleNewConsultation() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Opening consultation scheduler...'),
-        duration: Duration(seconds: 2),
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1976D2).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.calendar_today_outlined,
+                  color: Color(0xFF1976D2), size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Text('Book Consultation'),
+          ],
+        ),
+        content: const Text(
+          'To schedule a new consultation, please contact your dietician directly. '
+          'They will book a slot and it will appear here automatically.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pushNamed(context, '/appointments');
+            },
+            icon: const Icon(Icons.calendar_month_outlined, size: 16),
+            label: const Text('View My Appointments'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1976D2),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1143,7 +1431,8 @@ class _DashboardHomeState extends State<DashboardHome>
               'Date', _upcomingConsultation!['date'] as String),
           _buildConsultationDetailRow(
               'Time', _upcomingConsultation!['time'] as String),
-          _buildConsultationDetailRow('Type', 'Video Call'),
+          _buildConsultationDetailRow(
+              'Type', _upcomingConsultation!['type'] as String? ?? 'Consultation'),
         ],
       ),
       actions: [

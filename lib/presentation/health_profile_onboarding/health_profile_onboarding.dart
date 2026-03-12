@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/app_export.dart';
 import '../../core/client_tags.dart';
+import '../../routes/app_routes.dart';
 import '../../services/firebase_service.dart';
 import './widgets/activity_level_widget.dart';
 import './widgets/basic_info_widget.dart';
@@ -453,10 +454,11 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
         'onboardingComplete': true,
       });
 
-      // 3. Only navigate after BOTH writes succeed
+      // 3. Only navigate after BOTH writes succeed — skip subscription page,
+      //    user can subscribe from the dashboard whenever they're ready.
       if (mounted) {
         Navigator.of(context).pop(); // close loading dialog
-        Navigator.pushReplacementNamed(context, '/subscription-plans');
+        Navigator.pushReplacementNamed(context, AppRoutes.dashboardHome);
       }
     } catch (e) {
       debugPrint('Error saving profile: $e');
