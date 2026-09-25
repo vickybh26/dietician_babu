@@ -47,7 +47,10 @@ class _DietPlanViewerState extends State<DietPlanViewer> {
           );
         }
 
-        final plans = snapshot.data?.docs ?? [];
+        final plans = (snapshot.data?.docs ?? []).where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return data['status'] != 'archived';
+        }).toList();
 
         if (plans.isEmpty) {
           return _buildEmptyState();

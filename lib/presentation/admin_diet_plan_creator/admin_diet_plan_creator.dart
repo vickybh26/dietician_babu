@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../core/client_tags.dart';
 import '../../services/firebase_service.dart';
-import '../../config/secrets.dart';
 import '../../theme/app_theme.dart';
 
 // ─── Food Catalogue lookup ─────────────────────────────────────────────────
@@ -189,7 +188,7 @@ class _AdminDietPlanCreatorState extends State<AdminDietPlanCreator> {
         _notesController.text = selectedPlan['notes'] ?? '';
         _selectedTags.clear();
         _selectedTags.addAll((selectedPlan['tags'] as List?)?.map((e) => e.toString()) ?? []);
-        
+
         final weekData = selectedPlan['weekPlan'] as List?;
         if (weekData != null) {
           _weekPlan = weekData.map((d) => DayPlan(
@@ -323,13 +322,11 @@ Respond ONLY with valid JSON in this exact format, no markdown, no explanation:
 ''';
 
     try {
-      final model = GenerativeModel(
-        model: 'gemini-2.0-flash',
-        apiKey: AppSecrets.geminiApiKey,
-      );
-      final response = await model.generateContent([Content.text(prompt)]);
-      final text = response.text ?? '';
-
+      final result = await FirebaseFunctions.instance
+          .httpsCallable('generateDietPlan',
+              options: HttpsCallableOptions(timeout: const Duration(seconds: 120)))
+          .call({'prompt': prompt});
+      final text = jsonEncode(result.data);
       final jsonStart = text.indexOf('{');
       final jsonEnd = text.lastIndexOf('}');
       if (jsonStart == -1 || jsonEnd == -1) throw Exception('Invalid JSON');
@@ -1571,7 +1568,7 @@ class _PlanPickerPopupState extends State<_PlanPickerPopup> {
           .orderBy('uploadedAt', descending: true)
           .limit(20)
           .get();
-      
+
       if (mounted) {
         setState(() {
           _plans = snap.docs.map((d) {

@@ -5,7 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
-import '../config/secrets.dart';
+import '../config/app_config.dart';
 
 // ─── Firebase Config ───────────────────────────────────────────────────────────
 // ⚠️  Replace with your actual Firebase project values.
@@ -21,7 +21,7 @@ import '../config/secrets.dart';
 //   2. Download GoogleService-Info.plist
 //   3. Place it at: ios/Runner/GoogleService-Info.plist
 
-const String _adminEmail = 'dieticianbabu@gmail.com';
+
 
 class FirebaseService {
   static FirebaseService? _instance;
@@ -53,8 +53,12 @@ class FirebaseService {
     }
   }
 
-  bool get isAdmin =>
-      auth.currentUser?.email == _adminEmail;
+  Future<bool> get isAdmin async {
+    final user = auth.currentUser;
+    if (user == null) return false;
+    final token = await user.getIdTokenResult();
+    return token.claims?['admin'] == true;
+  }
 
   User? get currentUser => auth.currentUser;
 
@@ -102,6 +106,7 @@ class FirebaseService {
 
   /// Google Sign-In
   Future<UserCredential> signInWithGoogle() async {
+    if (kIsWeb) return auth.signInWithPopup(GoogleAuthProvider());
     final googleUser = await GoogleSignIn().signIn();
     if (googleUser == null) throw Exception('Google sign-in cancelled');
 
@@ -114,7 +119,9 @@ class FirebaseService {
   }
 
   Future<void> signOut() async {
-    await GoogleSignIn().signOut().catchError((_) {}); // also sign out Google
+    if (!kIsWeb) {
+      try { await GoogleSignIn().signOut(); } catch (_) {}
+    }
     await auth.signOut();
   }
 
@@ -182,6 +189,7 @@ class FirebaseService {
   Future<void> upsertUser(User user, {bool onboardingComplete = false}) async {
     final ref = db.collection('users').doc(user.uid);
     final snap = await ref.get();
+    final admin = await isAdmin;
     if (!snap.exists) {
       // New user — create full doc
       await ref.set({
@@ -189,8 +197,8 @@ class FirebaseService {
         'name': user.displayName ?? user.email?.split('@').first ?? '',
         'email': user.email ?? '',
         'phone': user.phoneNumber ?? '',
-        'role': user.email == _adminEmail ? 'admin' : 'client',
-        'status': user.email == _adminEmail ? 'admin' : 'pending',
+        'role': admin ? 'admin' : 'client',
+        'status': admin ? 'admin' : 'pending',
         'onboardingComplete': onboardingComplete,
         'createdAt': FieldValue.serverTimestamp(),
       });

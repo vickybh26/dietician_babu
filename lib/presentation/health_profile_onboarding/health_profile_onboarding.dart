@@ -444,7 +444,7 @@ class _HealthProfileOnboardingState extends State<HealthProfileOnboarding> {
         'cuisines': _selectedCuisines,
         'dietaryRestrictions': _selectedDietaryRestrictions,
         'tags': _selectedTags,
-        'subscriptionStatus': 'none',
+        if (!existing.exists) 'subscriptionStatus': 'none',
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 

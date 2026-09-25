@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:       # CRITICAL: Required for every Flutter project - DO NOT REMOVE
     sdk: flutter # CRITICAL: Required for every Flutter project - DO NOT REMOVE
-  
+
   # CRITICAL: Core UI and responsive design - DO NOT REMOVE OR MODIFY
   sizer: ^2.0.15              # Required for responsive design system
   flutter_svg: ^2.0.9        # Required for SVG icon support
@@ -33,7 +33,7 @@ dependencies:
   intl: ^0.19.0
   pin_code_fields: ^8.0.1
 
-  google_generative_ai: ^0.4.6
+  cloud_functions: ^5.6.2
   url_launcher: ^6.3.0
   google_sign_in: ^6.2.1
   pedometer: ^4.0.2
@@ -51,7 +51,7 @@ flutter:
   # CRITICAL ASSET MANAGEMENT RULES:
   # - DO NOT ADD NEW ASSET DIRECTORIES (assets/svg/, assets/icons/, etc.)
   # - ONLY USE EXISTING AND ITEMS AVAILABLE IN THE DIRECTORIES LISTED ABOVE (assets/, assets/images/)
-  
-  # CRITICAL FONTS RULE: 
+
+  # CRITICAL FONTS RULE:
   # - THIS PROJECT USES GOOGLE FONTS INSTEAD OF LOCAL FONTS
   # - DO NOT ADD ANY LOCAL FONTS SECTION OR FONT FILES

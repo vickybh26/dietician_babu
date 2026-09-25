@@ -152,13 +152,20 @@ class ClientProfileService {
 
   /// Unassign / soft-delete a plan from a client (set status = 'archived').
   static Future<void> archivePlan(String planId) async {
-    await _fs.plans.doc(planId).update({'status': 'archived'});
+    await _fs.plans.doc(planId).update({'status': 'archived', 'isActive': false});
   }
 
   /// Set a plan as the active plan for a client.
   static Future<void> setActivePlan(String uid, String planId) async {
     // First deactivate all plans for this client
     final snap = await _fs.plans.where('clientId', isEqualTo: uid).get();
+    final selected = snap.docs.where((doc) => doc.id == planId);
+    if (selected.isEmpty) {
+      throw StateError('The plan does not belong to this client.');
+    }
+    if (selected.first.data()['status'] == 'archived') {
+      throw StateError('An archived plan cannot be activated.');
+    }
     final batch = _fs.db.batch();
     for (final doc in snap.docs) {
       batch.update(doc.reference, {'isActive': false});

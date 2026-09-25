@@ -8,35 +8,21 @@ class ClientManagementService {
   static Future<List<Map<String, dynamic>>> getAllClients(
       {String? status}) async {
     try {
-      var query = _fs.users.where('role', isEqualTo: 'client');
-      final usersSnap = await query.get();
-      final List<Map<String, dynamic>> clients = [];
-      for (final doc in usersSnap.docs) {
-        final userData = doc.data();
-        userData['uid'] = doc.id;
-        final clientSnap = await _fs.clients.doc(doc.id).get();
-        if (clientSnap.exists) {
-          final clientData = clientSnap.data()!;
-          // Filter by status if provided
-          if (status != null) {
-            final subStatus = clientData['subscriptionStatus'] as String? ?? 'none';
-            if (subStatus != status) continue;
-          }
-          userData.addAll(clientData);
-        } else if (status != null) {
-          continue; // No profile yet, skip if filtering
-        }
-        final plansSnap = await _fs.plans
-            .where('clientId', isEqualTo: doc.id)
-            .orderBy('uploadedAt', descending: true)
-            .limit(1)
-            .get();
-        if (plansSnap.docs.isNotEmpty) {
-          userData['latestPlan'] = plansSnap.docs.first.data()['title'];
-        }
-        clients.add(userData);
-      }
-      return clients;
+      // Fetch each collection once instead of sequential per-client lookups.
+      // The full list is required by the existing search and export UI.
+      final snapshots = await Future.wait([
+        _fs.users.where('role', isEqualTo: 'client').get(),
+        status == null
+            ? _fs.clients.get()
+            : _fs.clients.where('subscriptionStatus', isEqualTo: status).get(),
+      ]);
+      final profiles = {for (final doc in snapshots[1].docs) doc.id: doc.data()};
+      final clients = <Map<String, dynamic>>[];
+      for (final doc in snapshots[0].docs) {
+        final profile = profiles[doc.id];
+        if (status != null && profile == null) continue;
+        clients.add({...doc.data(), ...?profile, 'uid': doc.id});
+      }      return clients;
     } catch (e) {
       throw Exception('Failed to fetch clients: $e');
     }

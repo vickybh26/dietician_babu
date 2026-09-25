@@ -29,12 +29,9 @@ A comprehensive Flutter-based health and nutrition management platform. It featu
    - *Note: These files are gitignored for security.*
 
 4. **Environment Variables:**
-   Create an `env.json` in the root folder with your Gemini API key:
-   ```json
-   {
-     "GEMINI_API_KEY": "your_key_here"
-   }
-   ```
+   The client accepts only the public Firebase web configuration through
+   `--dart-define=FIREBASE_API_KEY=...`. The Gemini key is server-only and is
+   configured in Firebase Functions with `firebase functions:secrets:set GEMINI_API_KEY`.
 
 ---
 
@@ -44,13 +41,13 @@ The app uses `--dart-define-from-file` to inject secrets.
 
 **CLI:**
 ```bash
-flutter run --dart-define-from-file=env.json
+flutter run --dart-define=FIREBASE_API_KEY=your_firebase_web_key
 ```
 
 **VS Code (`launch.json`):**
 ```json
 {
-    "args": ["--dart-define-from-file", "env.json"]
+    "args": ["--dart-define=FIREBASE_API_KEY=your_firebase_web_key"]
 }
 ```
 

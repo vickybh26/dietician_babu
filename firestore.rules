@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function admin() { return signedIn() && request.auth.token.get('admin', false) == true; }
+    function owner(uid) { return signedIn() && request.auth.uid == uid; }
+    function ownsRecord() { return signedIn() && resource.data.get('clientId', '') == request.auth.uid; }
+    function ownNewRecord() { return signedIn() && request.resource.data.get('clientId', '') == request.auth.uid; }
+    function profileFields() {
+      return ['goal', 'activityLevel', 'age', 'heightCm', 'weightKg', 'startingWeightKg',
+        'gender', 'medicalConditions', 'cuisines', 'dietaryRestrictions', 'tags', 'updatedAt', 'dailyStats'];
+    }
+    match /users/{uid} {
+      allow read: if admin() || owner(uid);
+      allow create: if admin() || (owner(uid) && request.resource.data.uid == uid
+        && request.resource.data.role == 'client'
+        && request.resource.data.get('status', 'pending') == 'pending'
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'role',
+          'status', 'onboardingComplete', 'createdAt']));
+      allow update: if admin() || (owner(uid) && request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['name', 'email', 'phone', 'city', 'country', 'onboardingComplete', 'preferences',
+          'restoreRequested', 'restoreDismissed']));
+      allow delete: if admin();
+    }
+    match /clients/{uid} {
+      allow read: if admin() || owner(uid);
+      allow create: if admin() || (owner(uid)
+        && request.resource.data.keys().hasOnly(profileFields().concat(['subscriptionStatus']))
+        && request.resource.data.get('subscriptionStatus', 'none') == 'none');
+      allow update: if admin() || (owner(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(profileFields()));
+      allow delete: if admin();
+      match /{collection}/{id} {
+        allow read: if admin() || (owner(uid) && collection in ['progressEntries', 'foodLogs',
+          'labReports', 'documents', 'weightHistory', 'measurements', 'mealLogs', 'exerciseLogs']);
+        allow write: if admin() || (owner(uid) && collection in ['foodLogs', 'weightHistory',
+          'measurements', 'mealLogs', 'exerciseLogs']);
+      }
+    }
+    match /plans/{id} {
+      allow read: if admin() || ownsRecord();
+      allow write: if admin();
+    }
+    match /appointments/{id} {
+      allow read: if admin() || ownsRecord();
+      allow write: if admin();
+    }
+    match /payments/{id} {
+      allow read: if admin() || ownsRecord();
+      allow write: if admin();
+    }
+    match /weeklyUpdates/{id} {
+      allow read: if admin() || ownsRecord();
+      allow create: if admin() || (ownNewRecord()
+        && request.resource.data.keys().hasOnly(['clientId', 'weightKg', 'mood', 'energyLevel',
+          'planAdherence', 'notes', 'adminNotes', 'submittedAt'])
+        && request.resource.data.get('adminNotes', '') == ''
+        && request.resource.data.weightKg is number && request.resource.data.weightKg > 0
+        && request.resource.data.weightKg < 500);
+      allow update, delete: if admin();
+    }
+    match /messages/{id} {
+      allow read: if admin() || ownsRecord();
+      allow update: if admin() || (ownsRecord() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']));
+      allow create, delete: if admin();
+    }
+    match /restoreRequests/{id} {
+      allow read: if admin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if admin() || (signedIn() && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.planType == '' && request.resource.data.plansUsed == 0
+        && request.resource.data.plansPending == 0 && request.resource.data.adminNotes == ''
+        && request.resource.data.resolvedAt == null
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'status',
+          'planType', 'plansUsed', 'plansPending', 'requestedAt', 'resolvedAt', 'adminNotes']));
+      allow update, delete: if admin();
+    }
+    match /subscriptionRequests/{id} {
+      allow read: if admin() || ownsRecord();
+      allow create: if admin() || (ownNewRecord() && request.resource.data.status == 'pending'
+        && request.resource.data.type in ['pause', 'resume']
+        && request.resource.data.keys().hasOnly(['clientId', 'clientName', 'clientEmail', 'type',
+          'currentPlan', 'requestedAt', 'status']));
+      allow update, delete: if admin();
+    }
+    match /nudges/{id} {
+      allow read: if admin() || ownsRecord();
+      allow create: if admin() || (ownNewRecord() && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasOnly(['clientId', 'clientName', 'type', 'timestamp', 'status']));
+      allow update, delete: if admin();
+    }
+    match /{document=**} {
+      allow read, write: if admin();
+    }
+  }
+}

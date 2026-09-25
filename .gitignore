@@ -21,7 +21,6 @@ env.json
 .svn/
 .swiftpm/
 migrate_working_dir/
-pubspec.lock
 
 # IntelliJ related
 *.iml
@@ -43,7 +42,6 @@ pubspec.lock
 .pub-cache/
 .pub/
 /build/
-/web/
 
 # Symbolication related
 app.*.symbols
@@ -55,3 +53,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Generated caches and local backend configuration
+.firebase/
+node_modules/
+functions/.env*
+functions/.secret.local
+.firebase-tools/
+build_err.txt
+rules.txt

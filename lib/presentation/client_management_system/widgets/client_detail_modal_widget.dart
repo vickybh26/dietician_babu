@@ -1,8 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../services/client_management_service.dart';
-import '../../../services/firebase_service.dart';
 
 class ClientDetailModalWidget extends StatefulWidget {
   final Map<String, dynamic> clientData;
@@ -45,12 +42,12 @@ class _ClientDetailModalWidgetState extends State<ClientDetailModalWidget>
   void _initializeFields() {
     final data = widget.clientData;
     final nc = data['nextConsultation'] as Map<String, dynamic>?;
-    
+
     _doctorNameCtrl.text = nc?['doctorName'] as String? ?? '';
     _consultDateCtrl.text = nc?['date'] as String? ?? '';
     _consultTimeCtrl.text = nc?['time'] as String? ?? '';
     _consultType = nc?['type'] as String? ?? 'video';
-    
+
     _targetCalCtrl.text = data['targetCalories']?.toString() ?? '1800';
     _targetWaterCtrl.text = data['targetWaterMl']?.toString() ?? '2500';
     _country = data['country'] as String? ?? 'India';
@@ -117,7 +114,7 @@ class _ClientDetailModalWidgetState extends State<ClientDetailModalWidget>
           CircleAvatar(
             radius: 25,
             backgroundColor: Colors.white.withOpacity(0.2),
-            child: hasNudge 
+            child: hasNudge
               ? const Icon(Icons.notifications_active, color: Colors.white)
               : Text(_getInitials(widget.clientData['name'] ?? 'Unknown'), style: const TextStyle(color: Colors.white)),
           ),

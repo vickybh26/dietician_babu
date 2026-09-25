@@ -1,3 +1,4 @@
+import '../widgets/admin_auth_guard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../presentation/splash_screen/splash_screen.dart';
@@ -63,14 +64,17 @@ class AppRoutes {
     };
 
     if (kIsWeb) {
-      // WEB ONLY: Only return Admin routes (and login)
-      return {
+      // WEB ONLY: Keep authentication inside the Navigator.
+      final Map<String, WidgetBuilder> webRoutes = {
         ...commonRoutes,
         initial: (context) => const AdminDashboardOverview(), // Web starts at Admin Dashboard
         adminDashboardOverview: (context) => const AdminDashboardOverview(),
         clientManagementSystem: (context) => const ClientManagementSystem(),
         clientProfile: (context) {
-          final uid = ModalRoute.of(context)!.settings.arguments as String;
+          final uid = ModalRoute.of(context)?.settings.arguments;
+          if (uid is! String || uid.isEmpty) {
+            return const Scaffold(body: Center(child: Text('Select a client from Client Management.')));
+          }
           return ClientProfileScreen(clientId: uid);
         },
         adminDietPlanCreator: (context) => const AdminDietPlanCreator(),
@@ -82,6 +86,8 @@ class AppRoutes {
         memberAnalytics: (context) => const MemberAnalyticsScreen(),
         restoreRequests: (context) => const RestoreRequestsScreen(),
       };
+      return webRoutes.map((name, builder) => MapEntry(name,
+          (context) => AdminAuthGuard(builder: builder)));
     } else {
       // MOBILE ONLY: Only return Client routes
       return {

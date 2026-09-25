@@ -59,10 +59,10 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // Use release keystore if key.properties exists, else fall back to debug
+            // Use release keystore if key.properties exists, otherwise fail the release build
             signingConfig keystorePropertiesFile.exists()
                 ? signingConfigs.release
-                : signingConfigs.debug
+                : null
         }
     }
 }
@@ -74,4 +74,11 @@ flutter {
 dependencies {
     implementation "androidx.multidex:multidex:2.0.1"
     implementation 'com.google.android.material:material:1.9.0'
+}
+
+// A release artifact must never silently use a debug signing key.
+gradle.taskGraph.whenReady { graph ->
+    if (graph.allTasks.any { it.name.toLowerCase().contains('release') } && !keystorePropertiesFile.exists()) {
+        throw new GradleException('Release signing is required: configure android/key.properties.')
+    }
 }

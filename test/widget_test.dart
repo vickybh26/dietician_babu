@@ -1,30 +1,32 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:dietician_babu/main.dart';
+import 'package:dietician_babu/core/diet_plan_selection.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('an older active plan wins over a newer legacy plan', () {
+    final older = {'format': 'structured', 'isActive': true, 'title': 'Active'};
+    expect(selectMealPlan([{'format': 'structured'}, older]), same(older));
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  test('archived and explicitly inactive plans are never selected', () {
+    expect(selectMealPlan([
+      {'format': 'structured', 'isActive': true, 'status': 'archived'},
+      {'format': 'structured', 'isActive': false},
+    ]), isNull);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  test('the latest legacy structured plan remains available', () {
+    final latest = {'format': 'structured', 'title': 'Latest'};
+    expect(selectMealPlan([latest, {'format': 'structured'}]), same(latest));
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  test('an active document plan prevents stale structured meals', () {
+    expect(selectMealPlan([
+      {'format': 'pdf', 'isActive': true},
+      {'format': 'structured'},
+    ]), isNull);
+  });
+
+  test('no plans produces no meals', () {
+    expect(selectMealPlan([]), isNull);
   });
 }

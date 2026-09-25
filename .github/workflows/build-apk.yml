@@ -1,42 +1,83 @@
-name: Build Android APK
-
+name: Validate and build
 on:
-  # Automatically build on push to main
   push:
-    branches: [ main ]
-  # Also allow manual trigger from GitHub UI
+    branches: [main]
+  pull_request:
   workflow_dispatch:
-
+permissions:
+  contents: read
 jobs:
-  build:
+  flutter:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
         with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
+          flutter-version: '3.41.6'
           channel: stable
           cache: true
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build Release APK
-        run: flutter build apk --release
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - name: Create compatibility configuration
+        run: cp lib/config/secrets.dart.example lib/config/secrets.dart
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - run: flutter test
+      - name: Compile web
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+        run: |
+          test -n "$FIREBASE_API_KEY" || { echo 'Missing FIREBASE_API_KEY'; exit 1; }
+          flutter build web --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY"
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - run: npm ci
+        working-directory: functions
+      - run: npm test
+        working-directory: functions
+      - run: npm run check
+        working-directory: functions
+  android:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [flutter, backend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.6'
+          cache: true
+      - name: Restore Android configuration and release signing
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_PROPERTIES: ${{ secrets.ANDROID_KEY_PROPERTIES }}
+        run: |
+          test -n "$GOOGLE_SERVICES_JSON" || { echo 'Missing GOOGLE_SERVICES_JSON'; exit 1; }
+          test -n "$ANDROID_KEYSTORE_BASE64" || { echo 'Missing ANDROID_KEYSTORE_BASE64'; exit 1; }
+          test -n "$ANDROID_KEY_PROPERTIES" || { echo 'Missing ANDROID_KEY_PROPERTIES'; exit 1; }
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/release.jks
+          printf '%s' "$ANDROID_KEY_PROPERTIES" > android/key.properties
+          cp lib/config/secrets.dart.example lib/config/secrets.dart
+      - run: flutter pub get --enforce-lockfile
+      - name: Build release APK
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+        run: |
+          test -n "$FIREBASE_API_KEY" || { echo 'Missing FIREBASE_API_KEY'; exit 1; }
+          flutter build apk --release --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY"
+      - uses: actions/upload-artifact@v4
         with:
           name: dietician-babu-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 90
+          retention-days: 30

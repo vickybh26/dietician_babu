@@ -1,3 +1,4 @@
+import '../../core/diet_plan_selection.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -462,15 +463,12 @@ class _DashboardHomeState extends State<DashboardHome>
     try {
       final snap = await FirebaseService.instance.plans
           .where('clientId', isEqualTo: uid)
-          .where('format', isEqualTo: 'structured')
           .orderBy('uploadedAt', descending: true)
-          .limit(1)
           .get();
-      if (snap.docs.isEmpty) return;
-
-      final plan = snap.docs.first.data() as Map<String, dynamic>;
+      final plan = selectMealPlan(snap.docs.map((doc) => doc.data()));
+      if (plan == null) return;
       final days = (plan['weekPlan'] as List?) ?? [];
-      final dayIdx = DateTime.now().weekday - 1; 
+      final dayIdx = DateTime.now().weekday - 1;
       if (dayIdx >= days.length) return;
 
       final dayData = days[dayIdx] as Map<String, dynamic>;
@@ -953,7 +951,7 @@ class _DashboardHomeState extends State<DashboardHome>
 
   void _addWater(int amount) {
     final newTotal = ((_userData['currentWater'] as int) + amount)
-        .clamp(0, (_userData['targetWater'] as int) + 1000) as int;
+        .clamp(0, (_userData['targetWater'] as int) + 1000);
     setState(() => _userData['currentWater'] = newTotal);
 
     ScaffoldMessenger.of(context).showSnackBar(

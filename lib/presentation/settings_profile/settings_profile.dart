@@ -418,8 +418,8 @@ class _SettingsProfileState extends State<SettingsProfile> {
       if (!mounted) return;
       Navigator.pop(context); // close loader
 
-      final userD = results[0].data() as Map<String, dynamic>? ?? {};
-      final clientD = results[1].data() as Map<String, dynamic>? ?? {};
+      final userD = results[0].data() ?? {};
+      final clientD = results[1].data() ?? {};
 
       final nameCtrl = TextEditingController(text: userD['name'] as String? ?? _userName);
       final phoneCtrl = TextEditingController(text: userD['phone'] as String? ?? _userPhone);
@@ -785,7 +785,7 @@ class _SettingsProfileState extends State<SettingsProfile> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Your personal health data is never sold to third parties. '  
+                'Your personal health data is never sold to third parties. '
                 'It is only shared with your assigned dietician.',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),

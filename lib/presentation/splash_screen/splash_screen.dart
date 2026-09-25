@@ -133,11 +133,6 @@ class _SplashScreenState extends State<SplashScreen>
       return;
     }
 
-    // Admin → Admin dashboard
-    if (fs.isAdmin) {
-      Navigator.pushReplacementNamed(context, AppRoutes.adminDashboardOverview);
-      return;
-    }
 
     // Regular client — check if onboarding is complete
     try {

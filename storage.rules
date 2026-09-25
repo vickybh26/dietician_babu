@@ -1,0 +1,15 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function admin() { return request.auth != null && request.auth.token.get('admin', false) == true; }
+    // Client files must be stored under their UID; old paths require review
+    // before this ruleset is deployed.
+    match /clients/{uid}/{path=**} {
+      allow read: if admin() || (request.auth != null && request.auth.uid == uid);
+      allow write: if admin();
+    }
+    match /{path=**} {
+      allow read, write: if admin();
+    }
+  }
+}

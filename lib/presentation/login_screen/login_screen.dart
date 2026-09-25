@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import 'package:sizer/sizer.dart';
@@ -63,9 +64,11 @@ class _LoginScreenState extends State<LoginScreen>
     await FirebaseService.instance.upsertUser(cred.user!);
     final profile = await FirebaseService.instance.getUserProfile(cred.user!.uid);
     if (!mounted) return;
-    if (FirebaseService.instance.isAdmin) {
-      Navigator.pushReplacementNamed(context, '/admin-dashboard-overview');
-    } else if (profile?['onboardingComplete'] == true) {
+    if (kIsWeb) {
+      if (mounted) Navigator.pushReplacementNamed(context, '/');
+      return;
+    }
+    if (profile?['onboardingComplete'] == true) {
       Navigator.pushReplacementNamed(context, '/dashboard-home');
     } else {
       Navigator.pushReplacementNamed(context, '/health-profile-onboarding');
